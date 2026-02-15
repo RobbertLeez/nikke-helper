@@ -1,0 +1,162 @@
+{
+  "global_settings": {
+    "appearance_mode": "Dark",
+    "default_output_filename_prefix": "NCA",
+    "default_temp_file_prefix": "temp_",
+    "default_delete_temp_files_after_run": true,
+    "default_image_spacing": 10,
+    "default_stitch_background_color": "0,0,0",
+    "log_to_file": false,
+    "log_filename": "app_log.log"
+  },
+  "delay_settings": {
+    "gui_startup": 5.0,
+    "after_player_entry": 1.5,
+    "after_team_click": 0.5,
+    "after_click_player_details": 3.0
+  },
+  "mode_specific_defaults": {
+    "mode1": {
+      "output_filename_suffix": "_prediction",
+      "player1_name": "Player1",
+      "player2_name": "Player2"
+    },
+    "mode2": {
+      "output_filename_suffix": "_review",
+      "include_result_image": true,
+      "result_image_position": "center"
+    },
+    "mode3": {
+      "output_filename_suffix": "_reverse_bet",
+      "include_vote_image": true
+    },
+    "mode4": {
+      "output_filename_suffix": "_64in8",
+      "num_players": 8,
+      "generate_overview_image": true,
+      "overview_layout_rows": 2,
+      "overview_layout_cols": 4,
+      "save_individual_images": false
+    },
+    "mode41": {
+      "output_filename_suffix": "_group_stage_match",
+      "player_temp_prefix": "gs_player"
+    },
+    "mode5": {
+      "output_filename_suffix": "_championship_pred",
+      "num_players": 8,
+      "generate_overview_image": true,
+      "overview_layout_rows": 2,
+      "overview_layout_cols": 4,
+      "save_individual_images": false
+    },
+    "mode6": {
+      "output_group_prefix": "Group",
+      "start_group_index": 0,
+      "end_group_index": 7
+    },
+    "mode7": {
+      "output_group_prefix": "Group",
+      "target_group_index": 0
+    },
+    "mode8": {
+      "output_filename_suffix": "_championship_matches"
+    },
+    "mode9": {
+      "input_dir_relative_to_main_output": true,
+      "input_subdir": "",
+      "output_webp_subdir": "webp_images",
+      "zip_filename": "archive.zip",
+      "webp_quality": 85,
+      "delete_originals_after_webp": false,
+      "delete_webp_after_zip": false
+    },
+    "mode10": {
+      "output_filename_suffix": "_recording",
+      "num_matches": 5,
+      "start_match": 0,
+      "video_fps": 60,
+      "video_resolution_width": 1920,
+      "video_resolution_height": 1080
+    }
+  },
+  "modes_meta": [
+    {
+      "id": 1,
+      "name": "应援助手-截取应援双方阵容",
+      "desc": "预测竞技场对手的队伍配置。",
+      "enabled": true,
+      "asset_image": "1.png"
+    },
+    {
+      "id": 2,
+      "name": "应援复盘",
+      "desc": "复盘竞技场对战记录。",
+      "enabled": true,
+      "asset_image": "2.png"
+    },
+    {
+      "id": 3,
+      "name": "应援助手-包含当前民意",
+      "desc": "保存对手的配置用于反向投注参考。",
+      "enabled": true,
+      "asset_image": "3.png"
+    },
+    {
+      "id": 4,
+      "name": "晋级赛8人阵容",
+      "desc": "处理64进8阶段的截图。",
+      "enabled": true,
+      "asset_image": "4.png"
+    },
+    {
+      "id": 5,
+      "name": "冠军赛8强阵容一览",
+      "desc": "处理冠军争霸赛阶段的预测截图。",
+      "enabled": true,
+      "asset_image": "5.png"
+    },
+    {
+      "id": 6,
+      "name": "赛果：晋级赛（8组）",
+      "desc": "处理完整分组赛的复盘截图。",
+      "enabled": true,
+      "asset_image": "6.png"
+    },
+    {
+      "id": 7,
+      "name": "赛果：晋级赛（当前组）",
+      "desc": "处理单组分组赛的复盘截图。",
+      "enabled": true,
+      "asset_image": "7.png"
+    },
+    {
+      "id": 8,
+      "name": "赛果：冠军八强赛",
+      "desc": "处理冠军赛阶段的复盘截图。",
+      "enabled": true,
+      "asset_image": "8.png"
+    },
+    {
+      "id": 9,
+      "name": "模式9: 图片处理与打包",
+      "desc": "将指定目录的图片转换为WebP并打包。",
+      "enabled": true,
+      "asset_image": "9.png"
+    },
+    {
+      "id": 41,
+      "name": "小组赛模式",
+      "desc": "截图小组赛中小组内四名玩家的阵容和数据，并水平拼接。",
+      "enabled": true,
+      "asset_image": "41.png"
+    },
+    {
+      "id": 10,
+      "name": "自动录屏",
+      "desc": "自动点击播放按钮，录制对局回放视频，检测结果页面后停止录屏。",
+      "enabled": true,
+      "asset_image": "10.png"
+    }
+  ]
+}
