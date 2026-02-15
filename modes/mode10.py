@@ -13,16 +13,22 @@ import win32gui
 from PIL import Image
 import threading
 
-# 尝试导入 dxcam，如果不可用则退回到 pyautogui 截图
+# 尝试导入高性能录制库
 try:
     import dxcam
     DXCAM_AVAILABLE = True
 except ImportError:
     DXCAM_AVAILABLE = False
 
+try:
+    import mss
+    MSS_AVAILABLE = True
+except ImportError:
+    MSS_AVAILABLE = False
+
 
 class VideoRecorder:
-    """视频录制器类 (优先使用 DXGI 方案实现高性能录屏)"""
+    """视频录制器类 (多级高性能方案：DXGI > MSS > PyAutoGUI)"""
     
     def __init__(self, context, output_path, fps=60, resolution=(1920, 1080)):
         self.context = context
@@ -34,24 +40,32 @@ class VideoRecorder:
         self.writer = None
         self.thread = None
         self.camera = None
+        self.sct = None
         
+        # 优先级 1: DXCAM (DXGI 方案)
         if DXCAM_AVAILABLE:
             try:
-                # 初始化 dxcam 实例
                 self.camera = dxcam.create(output_color="BGR")
-                self.logger.info("DXCAM 初始化成功，将使用 DXGI 高性能录屏方案")
+                self.logger.info("DXCAM 初始化成功")
             except Exception as e:
-                self.logger.error(f"DXCAM 初始化失败: {e}，将回退到普通截图方案")
+                self.logger.warning(f"DXCAM 初始化失败: {e}")
                 self.camera = None
+
+        # 优先级 2: MSS (高性能截图方案)
+        if not self.camera and MSS_AVAILABLE:
+            try:
+                self.sct = mss.mss()
+                self.logger.info("MSS 初始化成功，将作为高性能截图方案")
+            except Exception as e:
+                self.logger.warning(f"MSS 初始化失败: {e}")
+                self.sct = None
 
     def start_recording(self, window_hwnd):
         """开始录制指定窗口"""
         if self.recording:
-            self.logger.warning("录制已在进行中")
             return False
             
         try:
-            # 获取窗口客户区在屏幕上的位置
             left, top, right, bottom = win32gui.GetClientRect(window_hwnd)
             screen_left, screen_top = win32gui.ClientToScreen(window_hwnd, (left, top))
             width = right - left
@@ -59,29 +73,22 @@ class VideoRecorder:
             
             # 记录录制区域
             self.capture_region = (screen_left, screen_top, screen_left + width, screen_top + height)
-            self.logger.info(f"开始录制窗口区域: {self.capture_region}")
+            self.logger.info(f"录制区域: {self.capture_region}")
             
             # 初始化视频写入器
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            self.writer = cv2.VideoWriter(
-                self.output_path,
-                fourcc,
-                self.fps,
-                self.resolution
-            )
+            self.writer = cv2.VideoWriter(self.output_path, fourcc, self.fps, self.resolution)
             
             if not self.writer.isOpened():
                 self.logger.error("无法创建视频写入器")
                 return False
             
             self.recording = True
-            
-            # 启动录制线程
             self.thread = threading.Thread(target=self._recording_loop)
             self.thread.daemon = True
             self.thread.start()
             
-            self.logger.info(f"录制已启动 (FPS: {self.fps})，输出文件: {self.output_path}")
+            self.logger.info(f"录制启动 (FPS: {self.fps})")
             return True
             
         except Exception as e:
@@ -89,75 +96,76 @@ class VideoRecorder:
             return False
     
     def _recording_loop(self):
-        """录制循环（在单独线程中运行）"""
+        """录制循环"""
         frame_interval = 1.0 / self.fps
         
-        # 如果支持 DXCAM，使用其内置的高性能截图
+        # 方案 1: DXCAM
         if self.camera:
             try:
-                # 开启 DXCAM 录制
-                # 注意：dxcam 的 region 格式是 (left, top, right, bottom)
                 self.camera.start(region=self.capture_region, target_fps=self.fps)
-                self.logger.info(f"DXCAM 录制循环已启动，目标 FPS: {self.fps}")
-                
                 while self.recording:
                     loop_start = time.time()
-                    
-                    # 获取最新帧 (dxcam 内部会处理帧率同步)
                     frame = self.camera.get_latest_frame()
-                    
                     if frame is not None:
-                        # 调整分辨率
                         if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
                             frame = cv2.resize(frame, self.resolution)
-                        
-                        # 写入帧
                         self.writer.write(frame)
-                    
-                    # 这里的 sleep 只是为了不让 CPU 跑满，dxcam.get_latest_frame() 是非阻塞的
                     elapsed = time.time() - loop_start
                     if elapsed < (frame_interval * 0.5):
                         time.sleep(0.001)
-                        
                 self.camera.stop()
-                self.logger.info("DXCAM 录制循环已正常停止")
                 return
             except Exception as e:
-                self.logger.error(f"DXCAM 录制中出错: {e}，尝试切换到回退方案")
-                try:
-                    if self.camera: self.camera.stop()
-                except:
-                    pass
+                self.logger.error(f"DXCAM 录制出错: {e}")
+                try: self.camera.stop()
+                except: pass
 
-        # 回退方案: pyautogui 截图 (针对不兼容 DXGI 的系统)
-        self.logger.info("正在使用回退截图方案进行录制...")
-        while self.recording:
-            try:
+        # 方案 2: MSS (极速截图)
+        if self.sct:
+            self.logger.info("正在使用 MSS 高性能方案录制...")
+            monitor = {
+                "top": self.capture_region[1],
+                "left": self.capture_region[0],
+                "width": self.capture_region[2] - self.capture_region[0],
+                "height": self.capture_region[3] - self.capture_region[1]
+            }
+            while self.recording:
                 loop_start = time.time()
-                
-                # 截取窗口画面
+                try:
+                    sct_img = self.sct.grab(monitor)
+                    frame = np.array(sct_img)
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+                    
+                    if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
+                        frame = cv2.resize(frame, self.resolution)
+                    
+                    self.writer.write(frame)
+                    
+                    elapsed = time.time() - loop_start
+                    if elapsed < frame_interval:
+                        time.sleep(frame_interval - elapsed)
+                except Exception as e:
+                    self.logger.error(f"MSS 录制出错: {e}")
+                    break
+            return
+
+        # 方案 3: 保底 PyAutoGUI
+        self.logger.info("正在使用保底方案录制...")
+        while self.recording:
+            loop_start = time.time()
+            try:
                 x1, y1, x2, y2 = self.capture_region
                 screenshot = pyautogui.screenshot(region=(x1, y1, x2-x1, y2-y1))
-                
-                # 转换为 OpenCV 格式
                 frame = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-                
-                # 调整分辨率
                 if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
                     frame = cv2.resize(frame, self.resolution)
-                
-                # 写入帧
                 self.writer.write(frame)
-                
-                # 动态控制帧率，确保视频时长正确
                 elapsed = time.time() - loop_start
                 if elapsed < frame_interval:
                     time.sleep(frame_interval - elapsed)
-                    
             except Exception as e:
-                self.logger.error(f"回退录制帧时出错: {e}")
-                time.sleep(0.1)
-                continue
+                self.logger.error(f"保底录制出错: {e}")
+                break
     
     def stop_recording(self):
         """停止录制"""
