@@ -64,24 +64,40 @@ class VideoRecorder:
             # 2. 抓取声音: dshow (虚拟声卡或系统默认录音设备)
             # 3. 硬件加速编码: 尝试使用 h264_nvenc (NVIDIA) 或 libx264 (CPU)
             
-            # 移除所有音频相关参数，确保录制不会因为音频设备问题崩溃
-            cmd = [
-                self.ffmpeg_path,
-                "-y",
+            # 构建 FFmpeg 命令
+            # 基础画面参数
+            video_args = [
                 "-f", "gdigrab",
                 "-framerate", str(self.fps),
                 "-offset_x", str(screen_left),
                 "-offset_y", str(screen_top),
                 "-video_size", f"{width}x{height}",
-                "-i", "desktop",
+                "-i", "desktop"
+            ]
+            
+            # 尝试添加 CABLE Output 音频采集
+            # 使用 dshow 接口，设备名为用户截图中的 CABLE Output (VB-Audio Virtual Cable)
+            audio_args = [
+                "-f", "dshow",
+                "-i", 'audio=CABLE Output (VB-Audio Virtual Cable)',
+                "-c:a", "aac",
+                "-b:a", "128k"
+            ]
+            
+            # 编码参数
+            encoding_args = [
                 "-c:v", "libx264",
                 "-preset", "ultrafast",
                 "-pix_fmt", "yuv420p",
-                "-crf", "23",
-                self.output_path
+                "-crf", "23"
             ]
             
-            # 启动 FFmpeg 进程
+            # 完整命令 (先尝试带音频)
+            cmd = [self.ffmpeg_path, "-y"] + video_args + audio_args + encoding_args + [self.output_path]
+            
+            self.logger.info(f"尝试启动带音频录制: {self.output_path}")
+            
+            # 启动进程
             self.process = subprocess.Popen(
                 cmd,
                 stdin=subprocess.PIPE,
@@ -90,8 +106,22 @@ class VideoRecorder:
                 creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
             )
             
+            # 等待一小会儿检查进程是否立即崩溃 (通常是因为音频设备找不到)
+            time.sleep(1.0)
+            if self.process.poll() is not None:
+                self.logger.warning("带音频录制启动失败，可能是音频设备名称不匹配。正在回退到纯画面录制...")
+                # 回退到纯画面命令
+                cmd_no_audio = [self.ffmpeg_path, "-y"] + video_args + encoding_args + [self.output_path]
+                self.process = subprocess.Popen(
+                    cmd_no_audio,
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE,
+                    creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+                )
+            
             self.recording = True
-            self.logger.info(f"FFmpeg 录制已启动，输出: {self.output_path}")
+            self.logger.info(f"FFmpeg 录制已启动 (音频回退机制已就绪)")
             return True
             
         except Exception as e:
