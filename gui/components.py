@@ -101,6 +101,7 @@ class SidebarComponent:
                     {"name": "应援专用", "description": None, "ids": [1, 2, 3]},
                     {"name": "赛前总览用", "description": None, "ids": [41, 4, 5]},
                     {"name": "赛果分析用", "description": None, "ids": [6, 7, 8]},
+                    {"name": "视频录制", "description": None, "ids": [10]},
                     {"name": "图片处理", "description": None, "ids": [9]}
                 ]
 

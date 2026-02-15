@@ -224,13 +224,24 @@ def load_app_config(logger):
    - 处理文件未找到、JSON 格式错误或其他异常。
    - 如果失败，记录详细错误并返回默认配置。
    """
+   # 1. 确定搜索路径
    base_path = core_utils.get_base_path()
-   config_filepath = os.path.join(base_path, "config.json")
-   logger.info(f"Attempting to load config from: {config_filepath}")
-   try:
-       logger.info(f"Listing contents of base_path ('{base_path}'): {os.listdir(base_path)}")
-   except Exception as e_list:
-       logger.warning(f"Could not list contents of base_path ('{base_path}'): {e_list}")
+   
+   # 在打包环境下，优先从 _internal 目录寻找完整配置
+   # 如果不是打包环境，sys._MEIPASS 不存在，os.path.join(base_path, "_internal") 就是普通路径
+   internal_config = os.path.join(base_path, "_internal", "config.json")
+   external_config = os.path.join(base_path, "config.json")
+   
+   # 优先级：外部自定义配置 > 内部预设配置
+   search_paths = [external_config, internal_config]
+   
+   config_filepath = None
+   for path in search_paths:
+       logger.info(f"Checking for config at: {path}")
+       if os.path.exists(path):
+           config_filepath = path
+           logger.info(f"Found config at: {config_filepath}")
+           break
 
    default_config = { # Hardcoded fallback defaults
        "global_settings": {
@@ -247,7 +258,7 @@ def load_app_config(logger):
    }
 
    try:
-       if os.path.exists(config_filepath):
+       if config_filepath and os.path.exists(config_filepath):
            with open(config_filepath, 'r', encoding='utf-8') as f:
                config_data = json.load(f)
                logger.info(f"Successfully loaded app config from '{config_filepath}'.")
@@ -257,16 +268,16 @@ def load_app_config(logger):
                    config_data['modes_meta'] = [] # Ensure it exists as an empty list if invalid/missing
                return config_data
        else:
-           logger.warning(f"Config file '{config_filepath}' not found.")
-           try:
-               with open(config_filepath, 'w', encoding='utf-8') as f:
-                   json.dump(default_config, f, indent=2, ensure_ascii=False)
-               logger.info(f"Created default config file at '{os.path.abspath(config_filepath)}'. Please review and modify if needed.")
-               # Return the default config for this first run after creation
-               return default_config
-           except Exception as e_create:
-               logger.error(f"Failed to create default config file '{config_filepath}': {e_create}. Using internal hardcoded defaults.")
-               return default_config
+           logger.warning(f"No config file found in search paths: {search_paths}")
+           # 只有在外部路径也不存在时才尝试创建默认配置（在 EXE 同级目录）
+           if not os.path.exists(external_config):
+               try:
+                   with open(external_config, 'w', encoding='utf-8') as f:
+                       json.dump(default_config, f, indent=2, ensure_ascii=False)
+                   logger.info(f"Created default config file at '{os.path.abspath(external_config)}'.")
+               except Exception as e_create:
+                   logger.error(f"Failed to create default config file '{external_config}': {e_create}.")
+           return default_config
    except json.JSONDecodeError as json_err:
        logger.error(f"Failed to parse config file '{config_filepath}'. Check JSON format. Error: {json_err}. Using internal defaults.")
        return default_config
@@ -481,8 +492,17 @@ def execute_mode(context: AppContext, mode_number: int, mode_specific_inputs: di
 
     # 3. 模式调度
     module_name = f"modes.mode{mode_number}"
+    logger.info(f"Attempting to import {module_name}...")
     try:
-        mode_module = importlib.import_module(module_name)
+        # 在某些打包环境下，直接导入可能失败，尝试绝对导入
+        try:
+            mode_module = importlib.import_module(module_name)
+        except ImportError as e:
+            logger.warning(f"Standard import failed for {module_name}: {e}. Trying absolute import...")
+            # 尝试通过 sys.modules 或其他方式定位
+            import modes
+            mode_module = importlib.import_module(f"mode{mode_number}", package="modes")
+
         if hasattr(mode_module, 'run'):
             logger.info(f"Starting execution of mode {mode_number} ({module_name})...")
             mode_module.run(context) # 传递更新后的 context
