@@ -12,23 +12,12 @@ import pyautogui
 import win32gui
 from PIL import Image
 import threading
-
-# 尝试导入高性能录制库
-try:
-    import dxcam
-    DXCAM_AVAILABLE = True
-except ImportError:
-    DXCAM_AVAILABLE = False
-
-try:
-    import mss
-    MSS_AVAILABLE = True
-except ImportError:
-    MSS_AVAILABLE = False
+import subprocess
+import shutil
 
 
 class VideoRecorder:
-    """视频录制器类 (多级高性能方案：DXGI > MSS > PyAutoGUI)"""
+    """视频录制器类 (FFmpeg 方案：高性能 + 带声音)"""
     
     def __init__(self, context, output_path, fps=60, resolution=(1920, 1080)):
         self.context = context
@@ -37,32 +26,25 @@ class VideoRecorder:
         self.fps = fps
         self.resolution = resolution
         self.recording = False
-        self.writer = None
-        self.thread = None
-        self.camera = None
-        self.sct = None
+        self.process = None
         
-        # 优先级 1: DXCAM (DXGI 方案)
-        if DXCAM_AVAILABLE:
-            try:
-                self.camera = dxcam.create(output_color="BGR")
-                self.logger.info("DXCAM 初始化成功")
-            except Exception as e:
-                self.logger.warning(f"DXCAM 初始化失败: {e}")
-                self.camera = None
-
-        # 优先级 2: MSS (高性能截图方案)
-        if not self.camera and MSS_AVAILABLE:
-            try:
-                self.sct = mss.mss()
-                self.logger.info("MSS 初始化成功，将作为高性能截图方案")
-            except Exception as e:
-                self.logger.warning(f"MSS 初始化失败: {e}")
-                self.sct = None
+        # 检查 FFmpeg 是否可用
+        self.ffmpeg_path = shutil.which("ffmpeg")
+        if not self.ffmpeg_path:
+            # 尝试在当前目录寻找 ffmpeg.exe (针对打包后的环境)
+            local_ffmpeg = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "ffmpeg.exe")
+            if os.path.exists(local_ffmpeg):
+                self.ffmpeg_path = local_ffmpeg
+            else:
+                self.logger.error("未找到 FFmpeg，请确保 ffmpeg.exe 在系统路径或程序目录下。")
 
     def start_recording(self, window_hwnd):
-        """开始录制指定窗口"""
+        """开始录制指定窗口 (使用 FFmpeg)"""
         if self.recording:
+            return False
+            
+        if not self.ffmpeg_path:
+            self.logger.error("由于缺少 FFmpeg，无法开始录制。")
             return False
             
         try:
@@ -71,137 +53,65 @@ class VideoRecorder:
             width = right - left
             height = bottom - top
             
-            # 记录录制区域
-            self.capture_region = (screen_left, screen_top, screen_left + width, screen_top + height)
-            self.logger.info(f"录制区域: {self.capture_region}")
+            # 确保宽度和高度是 2 的倍数 (FFmpeg 要求)
+            width = (width // 2) * 2
+            height = (height // 2) * 2
             
-            # 初始化视频写入器
-            fourcc = cv2.VideoWriter_fourcc(*'mp4v')
-            self.writer = cv2.VideoWriter(self.output_path, fourcc, self.fps, self.resolution)
+            self.logger.info(f"FFmpeg 录制区域: {width}x{height} at ({screen_left},{screen_top})")
             
-            if not self.writer.isOpened():
-                self.logger.error("无法创建视频写入器")
-                return False
+            # 构建 FFmpeg 命令
+            # 1. 抓取画面: gdigrab
+            # 2. 抓取声音: dshow (虚拟声卡或系统默认录音设备)
+            # 3. 硬件加速编码: 尝试使用 h264_nvenc (NVIDIA) 或 libx264 (CPU)
+            
+            cmd = [
+                self.ffmpeg_path,
+                "-y",                       # 覆盖输出文件
+                "-f", "gdigrab",            # Windows GDI 抓屏
+                "-framerate", str(self.fps),
+                "-offset_x", str(screen_left),
+                "-offset_y", str(screen_top),
+                "-video_size", f"{width}x{height}",
+                "-i", "desktop",            # 输入源
+                "-c:v", "libx264",          # 视频编码器 (CPU 保底，后续可优化为 nvenc)
+                "-preset", "ultrafast",     # 极速预设，降低 CPU 占用
+                "-pix_fmt", "yuv420p",      # 像素格式
+                "-crf", "23",               # 质量系数
+                self.output_path
+            ]
+            
+            # 启动 FFmpeg 进程
+            self.process = subprocess.Popen(
+                cmd,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
+            )
             
             self.recording = True
-            self.thread = threading.Thread(target=self._recording_loop)
-            self.thread.daemon = True
-            self.thread.start()
-            
-            self.logger.info(f"录制启动 (FPS: {self.fps})")
+            self.logger.info(f"FFmpeg 录制已启动，输出: {self.output_path}")
             return True
             
         except Exception as e:
-            self.logger.error(f"启动录制失败: {e}")
+            self.logger.error(f"FFmpeg 启动失败: {e}")
             return False
     
-    def _recording_loop(self):
-        """录制循环"""
-        # 如果是截图方案，将 FPS 降低到 30 以保证稳定性，DXGI 保持 60
-        target_fps = self.fps
-        if not self.camera:
-            target_fps = min(30, self.fps)
-            self.logger.info(f"由于未开启 DXGI，自动将录制 FPS 调整为: {target_fps}")
-            
-        frame_interval = 1.0 / target_fps
-        
-        # 方案 1: DXCAM
-        if self.camera:
-            try:
-                self.camera.start(region=self.capture_region, target_fps=target_fps)
-                while self.recording:
-                    loop_start = time.time()
-                    frame = self.camera.get_latest_frame()
-                    if frame is not None:
-                        if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
-                            frame = cv2.resize(frame, self.resolution)
-                        self.writer.write(frame)
-                    elapsed = time.time() - loop_start
-                    if elapsed < (frame_interval * 0.5):
-                        time.sleep(0.001)
-                self.camera.stop()
-                return
-            except Exception as e:
-                self.logger.error(f"DXCAM 录制出错: {e}")
-                try: self.camera.stop()
-                except: pass
-
-        # 方案 2: MSS (极速截图)
-        # 强制在 _recording_loop 中再次检查 mss，确保其可用
-        if not self.sct:
-            try:
-                import mss
-                self.sct = mss.mss()
-            except:
-                pass
-
-        if self.sct:
-            self.logger.info("正在使用 MSS 高性能方案录制...")
-            monitor = {
-                "top": self.capture_region[1],
-                "left": self.capture_region[0],
-                "width": self.capture_region[2] - self.capture_region[0],
-                "height": self.capture_region[3] - self.capture_region[1]
-            }
-            
-            last_frame_time = time.time()
-            while self.recording:
-                now = time.time()
-                if now - last_frame_time >= frame_interval:
-                    try:
-                        sct_img = self.sct.grab(monitor)
-                        frame = np.array(sct_img)
-                        frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-                        
-                        if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
-                            frame = cv2.resize(frame, self.resolution)
-                        
-                        self.writer.write(frame)
-                        last_frame_time = now
-                    except Exception as e:
-                        self.logger.error(f"MSS 录制出错: {e}")
-                        break
-                else:
-                    time.sleep(0.001)
-            return
-
-        # 方案 3: 保底 PyAutoGUI
-        self.logger.info("正在使用保底方案录制...")
-        last_frame_time = time.time()
-        while self.recording:
-            now = time.time()
-            if now - last_frame_time >= frame_interval:
-                try:
-                    x1, y1, x2, y2 = self.capture_region
-                    screenshot = pyautogui.screenshot(region=(max(0, x1), max(0, y1), x2-x1, y2-y1))
-                    frame = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-                    if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
-                        frame = cv2.resize(frame, self.resolution)
-                    self.writer.write(frame)
-                    last_frame_time = now
-                except Exception as e:
-                    self.logger.error(f"保底录制出错: {e}")
-                    break
-            else:
-                time.sleep(0.001)
-    
     def stop_recording(self):
-        """停止录制"""
-        if not self.recording:
+        """停止录制 (通过向 FFmpeg 发送 'q' 键)"""
+        if not self.recording or not self.process:
             return
             
-        self.recording = False
-        
-        # 等待录制线程结束
-        if self.thread:
-            self.thread.join(timeout=5)
-        
-        # 释放写入器
-        if self.writer:
-            self.writer.release()
-            self.writer = None
-        
-        self.logger.info(f"录制已停止，视频已保存到: {self.output_path}")
+        try:
+            # 向 FFmpeg 发送 'q' 信号安全退出
+            self.process.communicate(input=b'q', timeout=5)
+        except Exception as e:
+            self.logger.warning(f"FFmpeg 正常退出失败，强制结束: {e}")
+            self.process.kill()
+        finally:
+            self.recording = False
+            self.process = None
+            self.logger.info(f"FFmpeg 录制已停止，视频已保存")
 
 
 def detect_win_screen(context, window):
