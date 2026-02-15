@@ -34,14 +34,14 @@ class ExternalRecorderController:
 
     def start_recording(self):
         if self.is_recording: return
-        self.logger.info(f"触发开始录制热键: {"+".join(self.start_hotkey)}")
+        self.logger.info(f"触发开始录制热键: {'+'.join(self.start_hotkey)}")
         pyautogui.hotkey(*self.start_hotkey)
         self.is_recording = True
         return True
 
     def stop_recording(self):
         if not self.is_recording: return
-        self.logger.info(f"触发停止录制热键: {"+".join(self.stop_hotkey)}")
+        self.logger.info(f"触发停止录制热键: {'+'.join(self.stop_hotkey)}")
         pyautogui.hotkey(*self.stop_hotkey)
         self.is_recording = False
         return True
