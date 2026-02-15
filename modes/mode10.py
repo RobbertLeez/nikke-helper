@@ -67,12 +67,13 @@ def capture_lineup(context, window, side="left", team_idx=0):
     entry_coord = core_constants.R_PLAYER1_ENTRY_REL if side == "left" else core_constants.R_PLAYER2_ENTRY_REL
     team_btns = core_constants.R_TEAM_BUTTONS_REL
     # 用户提供的 2375x1336 分辨率下的新截图区域 (866, 503) 到 (1506, 986)
+    # 用户提供的 2375x1336 分辨率下的新截图区域 (866, 503-43) 到 (1506, 986-43)
     # 转换为相对坐标: (x_rel, y_rel, width_rel, height_rel)
     # x_rel = 866 / 2375 = 0.3646
-    # y_rel = 503 / 1336 = 0.3765
+    # y_rel = (503 - 43) / 1336 = 460 / 1336 = 0.3443
     # width_rel = (1506 - 866) / 2375 = 640 / 2375 = 0.2695
     # height_rel = (986 - 503) / 1336 = 483 / 1336 = 0.3615
-    screenshot_region = (0.3646, 0.3765, 0.2695, 0.3615)
+    screenshot_region = (0.3646, 0.3443, 0.2695, 0.3615)
     exit_coord = core_constants.R_CLOSE_RESULT_REL # 借用关闭按钮坐标
     
     logger.info(f"正在截取 {side} 玩家第 {team_idx+1} 队阵容...")
@@ -111,8 +112,15 @@ def process_video_with_lineup(context, video_path, left_img, right_img, match_in
     target_dir = context.shared.app_config.get("mode_10", {}).get("m10_target_dir", "")
     if not target_dir: return video_path
     
-    timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    final_output = os.path.join(target_dir, f"match_{match_index+1}_{timestamp}_full.mp4")
+    # 获取命名所需的配置信息
+    m10_config = context.shared.app_config.get("mode_10", {})
+    season = m10_config.get("m10_season", 1)
+    match_stage = m10_config.get("m10_match_stage", "未知阶段")
+    
+    # 构建新的文件名
+    current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"S{season}_{match_stage}_Match{match_index+1}_{current_time}.mp4"
+    final_output = os.path.join(target_dir, filename)
     
     # 1. 合成阵容对比图 (1920x1080 背景)
     lineup_bg_path = os.path.join(context.shared.base_temp_dir, f"lineup_bg_{match_index}.png")

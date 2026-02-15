@@ -136,6 +136,8 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         self.source_dir_var = ctk.StringVar()
         self.target_dir_var = ctk.StringVar()
         self.match_count_var = ctk.StringVar()
+        self.season_var = ctk.StringVar()
+        self.match_stage_var = ctk.StringVar()
 
         self.create_widgets()
         self.load_settings()
@@ -177,6 +179,20 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         ctk.CTkLabel(count_frame, text="录制对局数量:").pack(side="left", padx=5)
         ctk.CTkEntry(count_frame, textvariable=self.match_count_var, width=60).pack(side="left", padx=5)
 
+        # 赛季配置
+        season_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        season_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(season_frame, text="当前赛季 (例如: 22):").pack(side="left", padx=5)
+        ctk.CTkEntry(season_frame, textvariable=self.season_var, width=60).pack(side="left", padx=5)
+
+        # 赛事阶段配置
+        stage_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        stage_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(stage_frame, text="赛事阶段:").pack(side="left", padx=5)
+        match_stages = ["小组赛", "64进32", "32进16", "16进8", "8进4", "半决赛", "决赛"]
+        self.match_stage_option_menu = ctk.CTkOptionMenu(stage_frame, values=match_stages, variable=self.match_stage_var)
+        self.match_stage_option_menu.pack(side="left", padx=5)
+
         # 底部按钮
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         btn_frame.pack(side="bottom", pady=10)
@@ -194,7 +210,9 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         self.stop_hotkey_var.set(config.get('m10_stop_hotkey', 'alt+f9'))
         self.source_dir_var.set(config.get('m10_source_dir', ''))
         self.target_dir_var.set(config.get('m10_target_dir', ''))
-        self.match_count_var.set(str(config.get('m10_match_count', 5)))
+        self.match_count_var.set(str(config.get("m10_match_count", 5)))
+        self.season_var.set(str(config.get("m10_season", 1)))
+        self.match_stage_var.set(config.get("m10_match_stage", "小组赛"))
 
     def save_settings(self):
         try:
@@ -203,7 +221,9 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
             config['m10_stop_hotkey'] = self.stop_hotkey_var.get()
             config['m10_source_dir'] = self.source_dir_var.get()
             config['m10_target_dir'] = self.target_dir_var.get()
-            config['m10_match_count'] = int(self.match_count_var.get())
+            config["m10_match_count"] = int(self.match_count_var.get())
+            config["m10_season"] = int(self.season_var.get())
+            config["m10_match_stage"] = self.match_stage_var.get()
             
             self.app_context.shared.app_config['mode_10'] = config
             
