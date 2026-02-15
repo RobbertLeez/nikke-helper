@@ -1,6 +1,5 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-
 import os
 
 # --- Helper function to find mode modules ---
@@ -16,10 +15,13 @@ def get_hidden_imports_for_modes(modes_dir='modes'):
 # --- Get mode hidden imports ---
 mode_hidden_imports = get_hidden_imports_for_modes()
 
-import os
-
-# --- Define data files ---
-data_files = [('config.json', '.'), ('icon.ico', '.')]
+# --- Define data files with absolute paths ---
+# SPECPATH is the directory containing this spec file
+spec_dir = os.path.dirname(os.path.abspath(SPECPATH))
+data_files = [
+    (os.path.join(spec_dir, 'config.json'), '.'),
+    (os.path.join(spec_dir, 'icon.ico'), '.')
+]
 
 # --- Define hidden imports ---
 # Add modes, potentially core modules, and library specifics
@@ -40,7 +42,7 @@ hidden_imports = [
 
 a = Analysis(
    ['gui_app.py'],
-   pathex=['.'], # Explicitly add current directory to path
+   pathex=[spec_dir], # Use spec directory as path
    binaries=[],
    datas=data_files,
    hiddenimports=hidden_imports, # Use the defined hidden_imports list
@@ -69,13 +71,13 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='icon.ico',
+    icon=os.path.join(spec_dir, 'icon.ico'),
     uac_admin=False)
 coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    Tree('assets', prefix='assets'),
+    Tree(os.path.join(spec_dir, 'assets'), prefix='assets'),
     strip=False,
     upx=True,
     upx_exclude=[],
