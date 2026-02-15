@@ -47,8 +47,6 @@ hidden_imports = [
    'modes.mode9',
    'modes.mode10',  # Explicitly add mode10
    'modes.mode41',
-   # Add other potential hidden imports if issues arise
-   # 'pygetwindow', # If used by core.utils
 ] + mode_hidden_imports # Add the dynamically found mode modules
 
 
@@ -89,9 +87,10 @@ coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    Tree(\'assets\', prefix=\'assets\'),
-    Tree(\'modes\', prefix=\'modes\'), # 确保包含所有模式文件
-    strip=False, upx=True,
+    Tree('assets', prefix='assets'),
+    Tree('modes', prefix='modes'), # 确保包含所有模式文件
+    strip=False,
+    upx=True,
     upx_exclude=[],
     name='NIKKE_CArena_Helper',
 )
