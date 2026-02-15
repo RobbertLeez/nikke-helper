@@ -205,13 +205,13 @@ def click_play_button(context, window, button_index):
     """
     logger = context.shared.logger
     
-    # 播放按钮相对坐标（基于实际截图测量，2048x1152分辨率）
+    # 播放按钮相对坐标（基于用户测量的 2379x1383 窗口坐标）
     play_button_coords_rel = [
-        (0.4297, 0.4062),  # Round 01
-        (0.4297, 0.4358),  # Round 02
-        (0.4297, 0.4661),  # Round 03
-        (0.4297, 0.4957),  # Round 04
-        (0.4297, 0.5252),  # Round 05
+        (0.6057, 0.5850),  # Round 01: (1441, 809) / (2379, 1383)
+        (0.6057, 0.6247),  # Round 02: (1441, 864) / (2379, 1383)
+        (0.6057, 0.6652),  # Round 03: (1441, 920) / (2379, 1383)
+        (0.6057, 0.7064),  # Round 04: (1441, 977) / (2379, 1383)
+        (0.6057, 0.7462),  # Round 05: (1441, 1032) / (2379, 1383)
     ]
     
     if button_index < 0 or button_index >= len(play_button_coords_rel):
@@ -230,8 +230,8 @@ def click_stats_button(context, window):
     """
     logger = context.shared.logger
     
-    # 统计按钮相对坐标（基于实际截图测量）
-    stats_button_coord_rel = (0.4478, 0.6745)
+    # 统计按钮相对坐标: (1495, 1309) / (2379, 1383)
+    stats_button_coord_rel = (0.6284, 0.9465)
     
     logger.info(f"点击统计按钮 (相对坐标: {stats_button_coord_rel[0]:.4f}, {stats_button_coord_rel[1]:.4f})")
     
@@ -329,8 +329,10 @@ def record_single_match(context, window, match_index, output_dir):
         # 7. 退出到播放按钮界面（点击两次）
         logger.info("退出到播放按钮界面...")
         
-        # 第一次点击（点击屏幕右侧）
-        exit_click_coord = (0.75, 0.5)  # 屏幕右侧中间
+        # 退出点击位置: (2005, 747) / (2379, 1383)
+        exit_click_coord = (0.8428, 0.5401)
+        
+        # 第一次点击
         core_utils.click_coordinates(context, exit_click_coord, window)
         logger.info("第1次点击")
         time.sleep(1.0)  # 等待1秒
