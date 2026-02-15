@@ -64,19 +64,30 @@ class VideoRecorder:
             # 2. 抓取声音: dshow (虚拟声卡或系统默认录音设备)
             # 3. 硬件加速编码: 尝试使用 h264_nvenc (NVIDIA) 或 libx264 (CPU)
             
+            # 尝试添加音频输入 (使用 dshow 抓取系统音频)
+            # 注意：用户可能需要安装 virtual-audio-capturer 才能录制系统声音
             cmd = [
                 self.ffmpeg_path,
-                "-y",                       # 覆盖输出文件
-                "-f", "gdigrab",            # Windows GDI 抓屏
+                "-y",
+                "-f", "gdigrab",
                 "-framerate", str(self.fps),
                 "-offset_x", str(screen_left),
                 "-offset_y", str(screen_top),
                 "-video_size", f"{width}x{height}",
-                "-i", "desktop",            # 输入源
-                "-c:v", "libx264",          # 视频编码器 (CPU 保底，后续可优化为 nvenc)
-                "-preset", "ultrafast",     # 极速预设，降低 CPU 占用
-                "-pix_fmt", "yuv420p",      # 像素格式
-                "-crf", "23",               # 质量系数
+                "-i", "desktop"
+            ]
+            
+            # 尝试添加音频捕获 (Windows 默认立体声混音或虚拟设备)
+            # 这里先注释掉，因为如果没有设备 FFmpeg 会启动失败
+            # cmd += ["-f", "dshow", "-i", "audio=virtual-audio-capturer"] 
+            
+            cmd += [
+                "-c:v", "libx264",
+                "-preset", "ultrafast",
+                "-pix_fmt", "yuv420p",
+                "-crf", "23",
+                "-c:a", "aac",              # 音频编码
+                "-b:a", "128k",
                 self.output_path
             ]
             
@@ -116,77 +127,77 @@ class VideoRecorder:
 
 def detect_win_screen(context, window):
     """
-    检测是否为WIN结束界面
-    通过检测屏幕上方的红色或青色"WIN"文字来判断
-    
-    Returns:
-        (is_win_screen, win_type): 
-            is_win_screen: 是否为WIN界面
-            win_type: 'red'（对方赢）或'blue'（己方赢）或None
+    【升级版】多重特征校验检测结算界面
+    1. 检测上方 [WIN] 文字的颜色与特定区域分布
+    2. 检测下方统计按钮图标的特征
     """
     logger = context.shared.logger
     
     try:
-        # 截取检测区域（屏幕上方30%）
-        detection_region_rel = (0.2, 0.05, 0.6, 0.3)
+        # 1. 检测上方 WIN 文字 (相对区域: 宽度 40% - 60%, 高度 10% - 25%)
+        win_region_rel = (0.4, 0.1, 0.2, 0.15)
         
-        temp_screenshot_path = os.path.join(
-            context.shared.base_temp_dir,
-            f"win_detect_{int(time.time())}.png"
-        )
+        # 2. 检测下方统计按钮 (相对区域: 宽度 60% - 65%, 高度 92% - 97%)
+        stats_icon_region_rel = (0.6, 0.9, 0.05, 0.08)
         
-        success = core_utils.take_screenshot(
-            context,
-            detection_region_rel,
-            window,
-            temp_screenshot_path
-        )
+        temp_win_path = os.path.join(context.shared.base_temp_dir, f"check_win_{int(time.time())}.png")
+        temp_stats_path = os.path.join(context.shared.base_temp_dir, f"check_stats_{int(time.time())}.png")
         
-        if not success or not os.path.exists(temp_screenshot_path):
-            return (False, None)
+        # 截取上方区域
+        core_utils.take_screenshot(context, win_region_rel, window, temp_win_path)
+        # 截取下方统计图标区域
+        core_utils.take_screenshot(context, stats_icon_region_rel, window, temp_stats_path)
         
-        # 读取截图
-        img = cv2.imread(temp_screenshot_path)
-        if img is None:
-            return (False, None)
+        is_win = False
+        win_type = None
         
-        # 转换为RGB（OpenCV默认是BGR）
-        img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        # 分析 WIN 文字颜色
+        if os.path.exists(temp_win_path):
+            img = cv2.imread(temp_win_path)
+            if img is not None:
+                img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                # 蓝色 WIN 特征 (己方赢)
+                blue_mask = (img_rgb[:,:,0] < 100) & (img_rgb[:,:,1] > 180) & (img_rgb[:,:,2] > 180)
+                # 红色 WIN 特征 (对方赢)
+                red_mask = (img_rgb[:,:,0] > 200) & (img_rgb[:,:,1] < 100) & (img_rgb[:,:,2] < 100)
+                
+                blue_ratio = np.sum(blue_mask) / img_rgb.size
+                red_ratio = np.sum(red_mask) / img_rgb.size
+                
+                if blue_ratio > 0.01:
+                    is_win = True
+                    win_type = 'blue'
+                elif red_ratio > 0.01:
+                    is_win = True
+                    win_type = 'red'
+            os.remove(temp_win_path)
+
+        # 校验下方统计按钮图标是否存在 (双重验证)
+        # 统计按钮图标通常是深灰色背景上的白色/浅灰色柱状图
+        has_stats_icon = False
+        if is_win and os.path.exists(temp_stats_path):
+            img_stats = cv2.imread(temp_stats_path)
+            if img_stats is not None:
+                # 统计图标特征：灰度图中存在明显的垂直/水平边缘
+                gray = cv2.cvtColor(img_stats, cv2.COLOR_BGR2GRAY)
+                # 简单检测：区域内是否有足够的亮色像素（柱状图的白色部分）
+                bright_pixels = np.sum(gray > 150) / gray.size
+                # 增加边缘检测作为辅助判断，统计按钮有明显的垂直柱状线条
+                edges = cv2.Canny(gray, 50, 150)
+                edge_density = np.sum(edges > 0) / edges.size
+                
+                if bright_pixels > 0.01 or edge_density > 0.01: 
+                    has_stats_icon = True
+            os.remove(temp_stats_path)
         
-        # 检测红色WIN文字（对方赢）
-        # RGB特征：R > 200, G < 80, B < 80
-        red_mask = (img_rgb[:,:,0] > 200) & \
-                   (img_rgb[:,:,1] < 80) & \
-                   (img_rgb[:,:,2] < 80)
-        red_ratio = np.sum(red_mask) / (img_rgb.shape[0] * img_rgb.shape[1])
+        if is_win and has_stats_icon:
+            logger.info(f"【精准命中】检测到结算界面: {win_type} (颜色占比: {blue_ratio if win_type=='blue' else red_ratio:.4f})")
+            return (True, win_type)
         
-        # 检测青色WIN文字（己方赢）
-        # RGB特征：R < 100, G > 180, B > 180
-        cyan_mask = (img_rgb[:,:,0] < 100) & \
-                    (img_rgb[:,:,1] > 180) & \
-                    (img_rgb[:,:,2] > 180)
-        cyan_ratio = np.sum(cyan_mask) / (img_rgb.shape[0] * img_rgb.shape[1])
-        
-        # 清理临时文件
-        try:
-            os.remove(temp_screenshot_path)
-        except:
-            pass
-        
-        # 判断阈值（0.5%的像素）
-        threshold = 0.005
-        
-        if red_ratio > threshold:
-            logger.info(f"检测到红色WIN界面（对方赢），红色占比: {red_ratio:.4f}")
-            return (True, 'red')
-        elif cyan_ratio > threshold:
-            logger.info(f"检测到青色WIN界面（己方赢），青色占比: {cyan_ratio:.4f}")
-            return (True, 'blue')
-        else:
-            return (False, None)
+        return (False, None)
         
     except Exception as e:
-        logger.error(f"检测WIN界面时出错: {e}")
+        logger.error(f"检测结算界面时出错: {e}")
         return (False, None)
 
 
@@ -306,17 +317,17 @@ def record_single_match(context, window, match_index, output_dir):
         # 5. 检测到WIN界面后的处理
         if win_detected:
             # 增加等待时间，确保动画播放完毕，统计按钮完全出现
-            # 根据用户反馈，之前 0.5s 太快，2.0s 应该能确保按钮完全稳固
-            logger.info("检测到WIN界面，等待 2.5 秒确保动画结束且统计按钮出现...")
-            time.sleep(2.5)
+            logger.info("检测到WIN界面，等待 3.0 秒确保动画彻底结束...")
+            time.sleep(3.0)
             
             # 点击统计按钮
             click_stats_button(context, window)
             
-            logger.info("已点击统计按钮，等待 2.0 秒确保数据完全显示...")
-            time.sleep(2.0)
+            # 在停止录制前多留一些时间录制统计数据
+            logger.info("已点击统计按钮，继续录制 3.0 秒数据展示...")
+            time.sleep(3.0)
         
-        # 6. 停止录制
+        # 6. 停止录制 (确保统计数据已在视频中)
         recorder.stop_recording()
         
         logger.info(f"Round {match_index + 1:02d} 录制完成: {output_path}")
