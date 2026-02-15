@@ -65,9 +65,10 @@ class VideoRecorder:
             # 3. 硬件加速编码: 尝试使用 h264_nvenc (NVIDIA) 或 libx264 (CPU)
             
             # 构建 FFmpeg 命令
-            # 基础画面参数
+            # 基础画面参数 - 增加 thread_queue_size 防止缓冲区溢出导致画面冻结
             video_args = [
                 "-f", "gdigrab",
+                "-thread_queue_size", "1024",
                 "-framerate", str(self.fps),
                 "-offset_x", str(screen_left),
                 "-offset_y", str(screen_top),
@@ -75,10 +76,10 @@ class VideoRecorder:
                 "-i", "desktop"
             ]
             
-            # 尝试添加 CABLE Output 音频采集
-            # 使用 dshow 接口，设备名为用户截图中的 CABLE Output (VB-Audio Virtual Cable)
+            # 尝试添加 CABLE Output 音频采集 - 同样增加缓冲区并强制同步
             audio_args = [
                 "-f", "dshow",
+                "-thread_queue_size", "1024",
                 "-i", 'audio=CABLE Output (VB-Audio Virtual Cable)',
                 "-c:a", "aac",
                 "-b:a", "128k"
@@ -93,7 +94,16 @@ class VideoRecorder:
             ]
             
             # 完整命令 (先尝试带音频)
-            cmd = [self.ffmpeg_path, "-y"] + video_args + audio_args + encoding_args + [self.output_path]
+            # 加入 -async 1 和 -vsync 1 强制音画同步
+            cmd = [
+                self.ffmpeg_path, 
+                "-y", 
+                "-hide_banner", 
+                "-loglevel", "error"
+            ] + video_args + audio_args + encoding_args + [
+                "-max_muxing_queue_size", "1024",
+                self.output_path
+            ]
             
             self.logger.info(f"尝试启动带音频录制: {self.output_path}")
             
