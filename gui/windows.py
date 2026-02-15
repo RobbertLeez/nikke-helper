@@ -3,6 +3,7 @@ import ctypes
 import json
 import os
 import logging
+from customtkinter import filedialog
 from core.utils import get_base_path
 
 
@@ -116,3 +117,101 @@ class SettingsWindow(ctk.CTkToplevel):
         except Exception as e:
             logger.exception("保存延迟设置时发生未知错误:")
             ctypes.windll.user32.MessageBoxW(self.winfo_id(), f"保存延迟设置时发生未知错误:\n\n{e}", "严重错误", 0x00000010)
+
+
+class Mode10SettingsWindow(ctk.CTkToplevel):
+    """模式10 (录屏指挥官) 专用配置窗口"""
+
+    def __init__(self, master, app_context):
+        super().__init__(master)
+        self.app_context = app_context
+        self.transient(master)
+        self.title("模式10 录屏配置")
+        self.geometry("550x450")
+        self.grab_set()
+
+        # StringVar
+        self.start_hotkey_var = ctk.StringVar()
+        self.stop_hotkey_var = ctk.StringVar()
+        self.source_dir_var = ctk.StringVar()
+        self.target_dir_var = ctk.StringVar()
+        self.match_count_var = ctk.StringVar()
+
+        self.create_widgets()
+        self.load_settings()
+
+    def create_widgets(self):
+        main_frame = ctk.CTkFrame(self)
+        main_frame.pack(padx=20, pady=20, fill="both", expand=True)
+        
+        # 标题说明
+        ctk.CTkLabel(main_frame, text="外部录屏指挥官配置", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(0, 15))
+
+        # 热键配置
+        hotkey_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        hotkey_frame.pack(fill="x", pady=5)
+        
+        ctk.CTkLabel(hotkey_frame, text="开始录制热键:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        ctk.CTkEntry(hotkey_frame, textvariable=self.start_hotkey_var, placeholder_text="例如: alt+f9").grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        
+        ctk.CTkLabel(hotkey_frame, text="停止录制热键:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        ctk.CTkEntry(hotkey_frame, textvariable=self.stop_hotkey_var, placeholder_text="例如: alt+f9").grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        hotkey_frame.grid_columnconfigure(1, weight=1)
+
+        # 目录配置
+        dir_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        dir_frame.pack(fill="x", pady=10)
+
+        ctk.CTkLabel(dir_frame, text="录屏源目录 (OBS/NVIDIA输出位置):").grid(row=0, column=0, columnspan=2, padx=5, pady=(5, 0), sticky="w")
+        ctk.CTkEntry(dir_frame, textvariable=self.source_dir_var).grid(row=1, column=0, padx=5, pady=5, sticky="ew")
+        ctk.CTkButton(dir_frame, text="浏览", width=60, command=lambda: self.browse_dir(self.source_dir_var)).grid(row=1, column=1, padx=5, pady=5)
+
+        ctk.CTkLabel(dir_frame, text="搬运目标目录:").grid(row=2, column=0, columnspan=2, padx=5, pady=(5, 0), sticky="w")
+        ctk.CTkEntry(dir_frame, textvariable=self.target_dir_var).grid(row=3, column=0, padx=5, pady=5, sticky="ew")
+        ctk.CTkButton(dir_frame, text="浏览", width=60, command=lambda: self.browse_dir(self.target_dir_var)).grid(row=3, column=1, padx=5, pady=5)
+        dir_frame.grid_columnconfigure(0, weight=1)
+
+        # 局数配置
+        count_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        count_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(count_frame, text="录制对局数量:").pack(side="left", padx=5)
+        ctk.CTkEntry(count_frame, textvariable=self.match_count_var, width=60).pack(side="left", padx=5)
+
+        # 底部按钮
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(side="bottom", pady=10)
+        ctk.CTkButton(btn_frame, text="保存配置", fg_color="green", command=self.save_settings).pack(side="left", padx=10)
+        ctk.CTkButton(btn_frame, text="取消", command=self.destroy).pack(side="left", padx=10)
+
+    def browse_dir(self, var):
+        directory = filedialog.askdirectory()
+        if directory:
+            var.set(directory)
+
+    def load_settings(self):
+        config = self.app_context.shared.app_config.get('mode_10', {})
+        self.start_hotkey_var.set(config.get('m10_start_hotkey', 'alt+f9'))
+        self.stop_hotkey_var.set(config.get('m10_stop_hotkey', 'alt+f9'))
+        self.source_dir_var.set(config.get('m10_source_dir', ''))
+        self.target_dir_var.set(config.get('m10_target_dir', ''))
+        self.match_count_var.set(str(config.get('m10_match_count', 5)))
+
+    def save_settings(self):
+        try:
+            config = self.app_context.shared.app_config.get('mode_10', {})
+            config['m10_start_hotkey'] = self.start_hotkey_var.get()
+            config['m10_stop_hotkey'] = self.stop_hotkey_var.get()
+            config['m10_source_dir'] = self.source_dir_var.get()
+            config['m10_target_dir'] = self.target_dir_var.get()
+            config['m10_match_count'] = int(self.match_count_var.get())
+            
+            self.app_context.shared.app_config['mode_10'] = config
+            
+            config_filepath = os.path.join(get_base_path(), "config.json")
+            with open(config_filepath, 'w', encoding='utf-8') as f:
+                json.dump(self.app_context.shared.app_config, f, indent=2, ensure_ascii=False)
+            
+            self.app_context.shared.logger.info("模式10配置已保存")
+            self.destroy()
+        except Exception as e:
+            ctypes.windll.user32.MessageBoxW(0, f"保存失败: {e}", "错误", 0x10)

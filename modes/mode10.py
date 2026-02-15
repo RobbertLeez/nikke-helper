@@ -21,14 +21,15 @@ class ExternalRecorderController:
     def __init__(self, context):
         self.context = context
         self.logger = context.shared.logger
-        self.mode_config = context.mode_config
         
-        # 获取配置参数 (预留给 GUI)
+        # 从 app_config 中获取模式10的专用配置
+        m10_config = context.shared.app_config.get('mode_10', {})
+        
         # 热键格式如: ['alt', 'f9'] 或 ['f10']
-        self.start_hotkey = getattr(self.mode_config, 'm10_start_hotkey', 'alt+f9').split('+')
-        self.stop_hotkey = getattr(self.mode_config, 'm10_stop_hotkey', 'alt+f9').split('+')
-        self.source_dir = getattr(self.mode_config, 'm10_source_dir', '')
-        self.target_dir = getattr(self.mode_config, 'm10_target_dir', '')
+        self.start_hotkey = m10_config.get('m10_start_hotkey', 'alt+f9').lower().split('+')
+        self.stop_hotkey = m10_config.get('m10_stop_hotkey', 'alt+f9').lower().split('+')
+        self.source_dir = m10_config.get('m10_source_dir', '')
+        self.target_dir = m10_config.get('m10_target_dir', '')
         
         self.is_recording = False
 
@@ -249,9 +250,10 @@ def run(context):
     if not window:
         return
     
-    mode_config = context.mode_config
-    match_count = getattr(mode_config, 'm10_match_count', 5)
-    start_index = getattr(mode_config, 'm10_start_index', 0)
+    # 从 app_config 中获取模式10的专用配置
+    m10_config = context.shared.app_config.get('mode_10', {})
+    match_count = m10_config.get('m10_match_count', 5)
+    start_index = m10_config.get('m10_start_index', 0)
     
     for i in range(start_index, start_index + match_count):
         if core_utils.check_stop_signal(context):

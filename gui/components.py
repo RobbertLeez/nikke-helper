@@ -138,6 +138,13 @@ class SidebarComponent:
                             self.mode_buttons[mode_id] = btn
                             btn.configure(command=lambda m_id=mode_id: self.on_mode_select(m_id, self.mode_buttons.get(m_id)))
                             self.current_row += 1
+                            
+                            # 为模式10添加专用配置按钮
+                            if mode_id == 10:
+                                m10_config_btn = ctk.CTkButton(self.sidebar_frame, text="⚙ 录屏配置", height=16, font=ctk.CTkFont(size=11), fg_color="gray")
+                                m10_config_btn.grid(row=self.current_row, column=0, padx=40, pady=(0, 5), sticky="ew")
+                                m10_config_btn.configure(command=self.parent.event_handler.handle_mode10_settings_click)
+                                self.current_row += 1
             else:
                 no_modes_label = ctk.CTkLabel(self.sidebar_frame, text="没有可用的模式。", font=ctk.CTkFont(slant="italic"))
                 no_modes_label.grid(row=self.current_row, column=0, padx=20, pady=10)

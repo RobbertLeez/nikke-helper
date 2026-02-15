@@ -113,6 +113,16 @@ class EventHandler:
         else:
             self.app_instance.settings_window.focus()
 
+    def handle_mode10_settings_click(self):
+        """处理模式10专用设置点击事件"""
+        if not hasattr(self.app_instance, 'mode10_settings_window') or \
+           not self.app_instance.mode10_settings_window or \
+           not self.app_instance.mode10_settings_window.winfo_exists():
+            from gui.windows import Mode10SettingsWindow
+            self.app_instance.mode10_settings_window = Mode10SettingsWindow(self.app_instance, self.app_context)
+        else:
+            self.app_instance.mode10_settings_window.focus()
+
     def handle_image_toggle(self):
         """处理图像显示开关事件"""
         if self.app_instance.sidebar_component.image_display_switch.get():
@@ -161,6 +171,15 @@ class EventHandler:
         if mode_specific_inputs is None:  # 用户取消
             self._cancel_script_start()
             return
+            
+        # 模式10启动前检查配置
+        if self.app_instance.current_mode_value == 10:
+            config = self.app_context.shared.app_config.get('mode_10', {})
+            if not config.get('m10_source_dir') or not config.get('m10_target_dir'):
+                self.handle_mode10_settings_click()
+                self._cancel_script_start()
+                self.app_instance.status_component.update_status("模式10启动取消：请先配置录屏目录。")
+                return
 
         # 启动脚本
         self.app_instance.script_runner.start_script(
