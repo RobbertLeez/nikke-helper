@@ -120,10 +120,9 @@ def process_video_with_lineup(context, video_path, left_img, right_img, left_pla
     season = m10_config.get("m10_season", 1)
     match_stage = m10_config.get("m10_match_stage", "未知阶段")
     
-    # 构建新的文件名 (仅显示日期)
+    # 构建新的文件名 (仅显示日期，简化格式)
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    player_names = f"{left_player_id} VS {right_player_id}" if left_player_id and right_player_id else "Unknown_VS_Unknown"
-    filename = f"S{season}_{match_stage}_{player_names}_Match{match_index+1}_{current_date}.mp4"
+    filename = f"S{season}_{match_stage}_Match{match_index+1}_{current_date}.mp4"
     final_output = os.path.join(target_dir, filename)
     
     # 1. 合成阵容对比图 (1920x1080 背景)
@@ -302,8 +301,6 @@ def run(context):
         return
 
     for i in selected_matches:
-        if core_utils.check_stop_signal(context): break
-        record_single_match(context, window, i)
         if core_utils.check_stop_signal(context): break
         record_single_match(context, window, i)
     logger.info("===== 模式 10 执行完毕 =====")

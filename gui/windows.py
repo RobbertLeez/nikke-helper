@@ -127,7 +127,7 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         self.app_context = app_context
         self.transient(master)
         self.title("模式10 录屏配置")
-        self.geometry("600x600")
+        self.geometry("850x650")
         self.grab_set()
 
         # StringVar
@@ -138,7 +138,7 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         self.match_count_var = ctk.StringVar()
         self.season_var = ctk.StringVar()
         self.match_stage_var = ctk.StringVar()
-        self.match_selection_vars = [ctk.BooleanVar(value=True) for _ in range(5)] # 默认全部勾选
+        self.match_selection_vars = [ctk.BooleanVar(value=True) for _ in range(5)]
 
         self.create_widgets()
         self.load_settings()
@@ -148,69 +148,62 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         main_frame.pack(padx=20, pady=20, fill="both", expand=True)
         
         # 标题说明
-        ctk.CTkLabel(main_frame, text="外部录屏指挥官配置", font=ctk.CTkFont(size=16, weight="bold")).pack(pady=(0, 15))
+        ctk.CTkLabel(main_frame, text="外部录屏指挥官配置", font=ctk.CTkFont(size=18, weight="bold")).pack(pady=(10, 20))
 
         # 热键配置
         hotkey_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        hotkey_frame.pack(fill="x", pady=5)
+        hotkey_frame.pack(fill="x", padx=20, pady=5)
         
-        ctk.CTkLabel(hotkey_frame, text="开始录制热键:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        ctk.CTkEntry(hotkey_frame, textvariable=self.start_hotkey_var, placeholder_text="例如: alt+f9").grid(row=0, column=1, padx=5, pady=5, sticky="ew")
+        ctk.CTkLabel(hotkey_frame, text="开始录制热键:").grid(row=0, column=0, padx=5, pady=10, sticky="w")
+        ctk.CTkEntry(hotkey_frame, textvariable=self.start_hotkey_var, width=600).grid(row=0, column=1, padx=5, pady=10, sticky="ew")
         
-        ctk.CTkLabel(hotkey_frame, text="停止录制热键:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        ctk.CTkEntry(hotkey_frame, textvariable=self.stop_hotkey_var, placeholder_text="例如: alt+f9").grid(row=1, column=1, padx=5, pady=5, sticky="ew")
+        ctk.CTkLabel(hotkey_frame, text="停止录制热键:").grid(row=1, column=0, padx=5, pady=10, sticky="w")
+        ctk.CTkEntry(hotkey_frame, textvariable=self.stop_hotkey_var, width=600).grid(row=1, column=1, padx=5, pady=10, sticky="ew")
         hotkey_frame.grid_columnconfigure(1, weight=1)
 
         # 目录配置
         dir_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        dir_frame.pack(fill="x", pady=10)
+        dir_frame.pack(fill="x", padx=20, pady=10)
 
-        ctk.CTkLabel(dir_frame, text="录屏源目录 (OBS/NVIDIA输出位置):").grid(row=0, column=0, columnspan=2, padx=5, pady=(5, 0), sticky="w")
+        ctk.CTkLabel(dir_frame, text="录屏源目录 (OBS/NVIDIA输出位置):").grid(row=0, column=0, columnspan=2, padx=5, pady=(10, 0), sticky="w")
         ctk.CTkEntry(dir_frame, textvariable=self.source_dir_var).grid(row=1, column=0, padx=5, pady=5, sticky="ew")
-        ctk.CTkButton(dir_frame, text="浏览", width=60, command=lambda: self.browse_dir(self.source_dir_var)).grid(row=1, column=1, padx=5, pady=5)
+        ctk.CTkButton(dir_frame, text="浏览", width=80, command=lambda: self.browse_dir(self.source_dir_var)).grid(row=1, column=1, padx=5, pady=5)
 
-        ctk.CTkLabel(dir_frame, text="搬运目标目录:").grid(row=2, column=0, columnspan=2, padx=5, pady=(5, 0), sticky="w")
+        ctk.CTkLabel(dir_frame, text="搬运目标目录:").grid(row=2, column=0, columnspan=2, padx=5, pady=(10, 0), sticky="w")
         ctk.CTkEntry(dir_frame, textvariable=self.target_dir_var).grid(row=3, column=0, padx=5, pady=5, sticky="ew")
-        ctk.CTkButton(dir_frame, text="浏览", width=60, command=lambda: self.browse_dir(self.target_dir_var)).grid(row=3, column=1, padx=5, pady=5)
+        ctk.CTkButton(dir_frame, text="浏览", width=80, command=lambda: self.browse_dir(self.target_dir_var)).grid(row=3, column=1, padx=5, pady=5)
         dir_frame.grid_columnconfigure(0, weight=1)
 
-        # 局数配置
-        count_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        count_frame.pack(fill="x", pady=5)
-        ctk.CTkLabel(count_frame, text="录制对局数量:").pack(side="left", padx=5)
-        ctk.CTkEntry(count_frame, textvariable=self.match_count_var, width=60).pack(side="left", padx=5)
-
-        # 赛季配置
-        season_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        season_frame.pack(fill="x", pady=5)
-        ctk.CTkLabel(season_frame, text="当前赛季 (例如: 22):").pack(side="left", padx=5)
-        ctk.CTkEntry(season_frame, textvariable=self.season_var, width=60).pack(side="left", padx=5)
+        # 局数与赛季配置 (并排)
+        info_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        info_frame.pack(fill="x", padx=20, pady=5)
+        
+        ctk.CTkLabel(info_frame, text="录制对局数量:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        ctk.CTkEntry(info_frame, textvariable=self.match_count_var, width=80).grid(row=0, column=1, padx=5, pady=5, sticky="w")
+        
+        ctk.CTkLabel(info_frame, text="当前赛季 (例如: 22):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
+        ctk.CTkEntry(info_frame, textvariable=self.season_var, width=80).grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
         # 赛事阶段配置
-        stage_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        stage_frame.pack(fill="x", pady=5)
-        ctk.CTkLabel(stage_frame, text="赛事阶段:").pack(side="left", padx=5)
+        ctk.CTkLabel(info_frame, text="赛事阶段:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
         match_stages = ["小组赛", "64进32", "32进16", "16进8", "8进4", "半决赛", "决赛"]
-        self.match_stage_option_menu = ctk.CTkOptionMenu(stage_frame, values=match_stages, variable=self.match_stage_var)
-        self.match_stage_option_menu.pack(side="left", padx=5)
+        self.match_stage_option_menu = ctk.CTkOptionMenu(info_frame, values=match_stages, variable=self.match_stage_var, width=150)
+        self.match_stage_option_menu.grid(row=2, column=1, padx=5, pady=5, sticky="w")
 
-        # 底部按钮
-        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.pack(side="bottom", pady=10)
-        ctk.CTkButton(btn_frame, text="保存配置", fg_color="green", command=self.save_settings).pack(side="left", padx=10)
         # 对局选择复选框
         match_selection_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        match_selection_frame.pack(fill="x", pady=5)
+        match_selection_frame.pack(fill="x", padx=20, pady=15)
         ctk.CTkLabel(match_selection_frame, text="选择要录制的对局:").pack(side="left", padx=5)
         for i in range(5):
             chk = ctk.CTkCheckBox(match_selection_frame, text=f"Match {i+1}", variable=self.match_selection_vars[i])
-            chk.pack(side="left", padx=5)
+            chk.pack(side="left", padx=15)
 
         # 底部按钮
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
-        btn_frame.pack(side="bottom", pady=10)
-        ctk.CTkButton(btn_frame, text="保存配置", fg_color="green", command=self.save_settings).pack(side="left", padx=10)
-        ctk.CTkButton(btn_frame, text="取消", command=self.destroy).pack(side="left", padx=10)
+        btn_frame.pack(side="bottom", pady=20)
+        
+        ctk.CTkButton(btn_frame, text="保存配置", fg_color="#28a745", hover_color="#218838", width=200, height=40, font=ctk.CTkFont(size=14, weight="bold"), command=self.save_settings).pack(side="left", padx=20)
+        ctk.CTkButton(btn_frame, text="取消", width=200, height=40, font=ctk.CTkFont(size=14, weight="bold"), command=self.destroy).pack(side="left", padx=20)
 
     def browse_dir(self, var):
         directory = filedialog.askdirectory()
