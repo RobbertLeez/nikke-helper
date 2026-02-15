@@ -1,7 +1,6 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
-from PyInstaller.utils.hooks import collect_all
 
 # --- Helper function to find mode modules ---
 def get_hidden_imports_for_modes(modes_dir='modes'):
@@ -16,14 +15,13 @@ def get_hidden_imports_for_modes(modes_dir='modes'):
 # --- Get mode hidden imports ---
 mode_hidden_imports = get_hidden_imports_for_modes()
 
-# --- Collect all for easyocr and its heavy dependencies ---
-# This will automatically handle datas, binaries, and hiddenimports for these packages
-packages_to_collect = ['easyocr', 'skimage', 'scipy', 'qudida', 'albumentations']
-datas = [
+# --- Define data files ---
+data_files = [
     ('config.json', '.'),
     ('icon.ico', '.')
 ]
-binaries = []
+
+# --- Define hidden imports ---
 hidden_imports = [
    'PIL._tkinter_finder',
    'PIL.ImageTk',
@@ -46,17 +44,12 @@ hidden_imports = [
    'modes.mode41',
 ] + mode_hidden_imports
 
-for pkg in packages_to_collect:
-    tmp_ret = collect_all(pkg)
-    datas += tmp_ret[0]
-    binaries += tmp_ret[1]
-    hidden_imports += tmp_ret[2]
 
 a = Analysis(
    ['gui_app.py'],
    pathex=[],
-   binaries=binaries,
-   datas=datas,
+   binaries=[],
+   datas=data_files,
    hiddenimports=hidden_imports,
    hookspath=[],
    hooksconfig={},

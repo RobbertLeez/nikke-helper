@@ -96,11 +96,8 @@ def capture_lineup(context, window, side="left", team_idx=0):
     core_utils.click_coordinates(context, exit_coord, window)
     time.sleep(1.0)
     
-    # 5. 识别玩家 ID
-    player_id_region = (0.4000, 0.3443, 0.1000, 0.0300) # 估计的玩家ID区域 (x_rel, y_rel, width_rel, height_rel)
-    player_id_temp_path = os.path.join(context.shared.base_temp_dir, f"player_id_{side}_{team_idx}_{timestamp}.png")
-    core_utils.take_screenshot(context, player_id_region, window, player_id_temp_path)
-    player_id = core_utils.recognize_player_id(context, player_id_temp_path)
+    # 5. 识别玩家 ID (已移除 OCR)
+    player_id = ""
     
     return save_path, player_id
 
@@ -123,10 +120,8 @@ def process_video_with_lineup(context, video_path, left_img, right_img, left_pla
     season = m10_config.get("m10_season", 1)
     match_stage = m10_config.get("m10_match_stage", "未知阶段")
     
-    # 构建新的文件名
-    current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    # 构建新的文件名
-    current_date = datetime.datetime.now().strftime("%Y%m%d")
+    # 构建新的文件名 (仅显示日期)
+    current_date = datetime.datetime.now().strftime("%Y-%m-%d")
     player_names = f"{left_player_id} VS {right_player_id}" if left_player_id and right_player_id else "Unknown_VS_Unknown"
     filename = f"S{season}_{match_stage}_{player_names}_Match{match_index+1}_{current_date}.mp4"
     final_output = os.path.join(target_dir, filename)
@@ -251,8 +246,8 @@ def record_single_match(context, window, match_index):
     recorder = ExternalRecorderController(context)
     
     # 1. 战前侦察：截图阵容
-    left_img = capture_lineup(context, window, "left", match_index)
-    right_img = capture_lineup(context, window, "right", match_index)
+    left_img, left_player_id = capture_lineup(context, window, "left", match_index)
+    right_img, right_player_id = capture_lineup(context, window, "right", match_index)
     
     # 2. 点击播放并开始录制
     play_coords = [(0.6057, 0.5850), (0.6057, 0.6247), (0.6057, 0.6652), (0.6057, 0.7064), (0.6057, 0.7462)]

@@ -13,10 +13,10 @@ import psutil
 import zipfile
 from . import constants as core_constants
 
-# OCR 模块导入
-import easyocr
-import cv2
-import numpy as np
+# OCR 模块已移除
+# import easyocr
+# import cv2
+# import numpy as np
 
 def get_asset_path(asset_name: str) -> str:
     """
@@ -162,53 +162,9 @@ def take_screenshot(context, relative_region: tuple, window: pygetwindow.Win32Wi
 
 def recognize_player_id(context, image_path: str, lang_list: list = ["ch_sim", "en"]) -> str:
     """
-    使用 EasyOCR 识别图片中指定区域的玩家 ID。
-    
-    参数:
-        context: 应用上下文。
-        image_path: 包含玩家 ID 的图片路径。
-        lang_list: EasyOCR 识别的语言列表，默认为简体中文和英文。
-        
-    返回:
-        识别到的玩家 ID 字符串，如果识别失败则返回空字符串。
+    OCR 功能已移除。
     """
-    logger = getattr(context.shared, 'logger', logging)
-    try:
-        # 初始化 EasyOCR reader
-        # 可以在这里缓存 reader 实例以提高性能
-        if not hasattr(context.shared, 'easyocr_reader'):
-            logger.info(f"初始化 EasyOCR reader，语言: {lang_list}")
-            context.shared.easyocr_reader = easyocr.Reader(lang_list, gpu=False) # 默认不使用 GPU，兼容性更好
-        reader = context.shared.easyocr_reader
-
-        # 读取图片
-        img = cv2.imread(image_path)
-        if img is None:
-            logger.error(f"无法读取图片文件: {image_path}")
-            return ""
-
-        # 转换为灰度图并进行预处理，增强识别效果
-        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-        # 尝试不同的预处理方法，例如二值化、降噪等
-        # _, binary = cv2.threshold(gray, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        # processed_img = cv2.medianBlur(binary, 3)
-        processed_img = gray # 初始尝试，如果效果不好再加预处理
-
-        # 执行 OCR 识别
-        results = reader.readtext(processed_img, detail=0, paragraph=True)
-        
-        if results:
-            # 假设玩家 ID 是识别到的第一行文本
-            player_id = results[0].strip()
-            logger.info(f"从图片 {image_path} 识别到玩家 ID: \'{player_id}\'")
-            return player_id
-        else:
-            logger.warning(f"从图片 {image_path} 未识别到玩家 ID。")
-            return ""
-
-    except Exception as e:
-        logger.error(f"EasyOCR 识别玩家 ID 时发生错误: {e}")
-        return ""
+    return ""
 
 def stitch_images_vertically(context, image_paths: list, output_path: str):
     """
