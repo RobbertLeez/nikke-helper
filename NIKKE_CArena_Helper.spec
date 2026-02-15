@@ -35,6 +35,18 @@ hidden_imports = [
    'core.utils',
    'core.match_processing',
    'core.player_processing',
+   # Explicitly add all mode modules to ensure they are included
+   'modes.mode1',
+   'modes.mode2',
+   'modes.mode3',
+   'modes.mode4',
+   'modes.mode5',
+   'modes.mode6',
+   'modes.mode7',
+   'modes.mode8',
+   'modes.mode9',
+   'modes.mode10',  # Explicitly add mode10
+   'modes.mode41',
    # Add other potential hidden imports if issues arise
    # 'pygetwindow', # If used by core.utils
 ] + mode_hidden_imports # Add the dynamically found mode modules
