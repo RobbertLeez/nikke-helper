@@ -246,7 +246,7 @@ def run(context):
     logger = context.shared.logger
     logger.info("===== 运行模式 10: 自动录屏 (热键搬运版) =====")
     
-    window = core_utils.get_nikke_window(context)
+    window = core_utils.find_and_activate_window(context)
     if not window:
         return
     
