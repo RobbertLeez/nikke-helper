@@ -64,8 +64,7 @@ class VideoRecorder:
             # 2. 抓取声音: dshow (虚拟声卡或系统默认录音设备)
             # 3. 硬件加速编码: 尝试使用 h264_nvenc (NVIDIA) 或 libx264 (CPU)
             
-            # 尝试添加音频输入 (使用 dshow 抓取系统音频)
-            # 注意：用户可能需要安装 virtual-audio-capturer 才能录制系统声音
+            # 移除所有音频相关参数，确保录制不会因为音频设备问题崩溃
             cmd = [
                 self.ffmpeg_path,
                 "-y",
@@ -74,20 +73,11 @@ class VideoRecorder:
                 "-offset_x", str(screen_left),
                 "-offset_y", str(screen_top),
                 "-video_size", f"{width}x{height}",
-                "-i", "desktop"
-            ]
-            
-            # 尝试添加音频捕获 (Windows 默认立体声混音或虚拟设备)
-            # 这里先注释掉，因为如果没有设备 FFmpeg 会启动失败
-            # cmd += ["-f", "dshow", "-i", "audio=virtual-audio-capturer"] 
-            
-            cmd += [
+                "-i", "desktop",
                 "-c:v", "libx264",
                 "-preset", "ultrafast",
                 "-pix_fmt", "yuv420p",
                 "-crf", "23",
-                "-c:a", "aac",              # 音频编码
-                "-b:a", "128k",
                 self.output_path
             ]
             
