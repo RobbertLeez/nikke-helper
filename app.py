@@ -1,5 +1,9 @@
 import sys
 import os
+
+# 确保 modes 目录在 sys.path 中，以便 PyInstaller 能够找到并打包模式模块
+sys.path.append(os.path.join(os.path.dirname(__file__), 'modes'))
+
 import time
 import logging
 import shutil

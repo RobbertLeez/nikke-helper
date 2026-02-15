@@ -89,9 +89,9 @@ coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    Tree('assets', prefix='assets'),
-    strip=False,
-    upx=True,
+    Tree(\'assets\', prefix=\'assets\'),
+    Tree(\'modes\', prefix=\'modes\'), # 确保包含所有模式文件
+    strip=False, upx=True,
     upx_exclude=[],
     name='NIKKE_CArena_Helper',
 )
