@@ -96,10 +96,16 @@ def capture_lineup(context, window, side="left", team_idx=0):
     core_utils.click_coordinates(context, exit_coord, window)
     time.sleep(1.0)
     
-    return save_path
+    # 5. 识别玩家 ID
+    player_id_region = (0.4000, 0.3443, 0.1000, 0.0300) # 估计的玩家ID区域 (x_rel, y_rel, width_rel, height_rel)
+    player_id_temp_path = os.path.join(context.shared.base_temp_dir, f"player_id_{side}_{team_idx}_{timestamp}.png")
+    core_utils.take_screenshot(context, player_id_region, window, player_id_temp_path)
+    player_id = core_utils.recognize_player_id(context, player_id_temp_path)
+    
+    return save_path, player_id
 
 
-def process_video_with_lineup(context, video_path, left_img, right_img, match_index):
+def process_video_with_lineup(context, video_path, left_img, right_img, left_player_id, right_player_id, match_index):
     """
     使用 FFmpeg 将阵容图拼接到视频开头
     """
@@ -119,7 +125,10 @@ def process_video_with_lineup(context, video_path, left_img, right_img, match_in
     
     # 构建新的文件名
     current_time = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"S{season}_{match_stage}_Match{match_index+1}_{current_time}.mp4"
+    # 构建新的文件名
+    current_date = datetime.datetime.now().strftime("%Y%m%d")
+    player_names = f"{left_player_id} VS {right_player_id}" if left_player_id and right_player_id else "Unknown_VS_Unknown"
+    filename = f"S{season}_{match_stage}_{player_names}_Match{match_index+1}_{current_date}.mp4"
     final_output = os.path.join(target_dir, filename)
     
     # 1. 合成阵容对比图 (1920x1080 背景)
@@ -229,6 +238,13 @@ def detect_win_screen(context, window):
 
 
 def record_single_match(context, window, match_index):
+    # 获取模式10的配置，用于判断是否跳过当前对局
+    m10_config = context.shared.app_config.get("mode_10", {})
+    if not m10_config.get(f"m10_match_{match_index+1}_selected", False):
+        context.shared.logger.info(f"对局 {match_index+1} 未被勾选，跳过录制。")
+        return True
+
+
     logger = context.shared.logger
     logger.info(f"===== 开始处理 Round {match_index + 1:02d} =====")
     
@@ -261,7 +277,7 @@ def record_single_match(context, window, match_index):
     raw_video = recorder.get_latest_video()
     
     if raw_video:
-        process_video_with_lineup(context, raw_video, left_img, right_img, match_index)
+        process_video_with_lineup(context, raw_video, left_img, right_img, left_player_id, right_player_id, match_index)
     
     # 5. 退出
     exit_rel = (0.8428, 0.5401)
@@ -280,7 +296,19 @@ def run(context):
     match_count = m10_config.get("m10_match_count", 5)
     start_idx = m10_config.get("m10_start_index", 0)
     
-    for i in range(start_idx, start_idx + match_count):
+    # 获取用户勾选的对局列表
+    selected_matches = []
+    for i in range(5):
+        if m10_config.get(f"m10_match_{i+1}_selected", False):
+            selected_matches.append(i)
+
+    if not selected_matches:
+        logger.warning("没有选择任何对局进行录制，模式10结束。")
+        return
+
+    for i in selected_matches:
+        if core_utils.check_stop_signal(context): break
+        record_single_match(context, window, i)
         if core_utils.check_stop_signal(context): break
         record_single_match(context, window, i)
     logger.info("===== 模式 10 执行完毕 =====")

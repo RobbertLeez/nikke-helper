@@ -127,7 +127,7 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         self.app_context = app_context
         self.transient(master)
         self.title("模式10 录屏配置")
-        self.geometry("550x450")
+        self.geometry("600x600")
         self.grab_set()
 
         # StringVar
@@ -138,6 +138,7 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         self.match_count_var = ctk.StringVar()
         self.season_var = ctk.StringVar()
         self.match_stage_var = ctk.StringVar()
+        self.match_selection_vars = [ctk.BooleanVar(value=True) for _ in range(5)] # 默认全部勾选
 
         self.create_widgets()
         self.load_settings()
@@ -197,6 +198,18 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         btn_frame.pack(side="bottom", pady=10)
         ctk.CTkButton(btn_frame, text="保存配置", fg_color="green", command=self.save_settings).pack(side="left", padx=10)
+        # 对局选择复选框
+        match_selection_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        match_selection_frame.pack(fill="x", pady=5)
+        ctk.CTkLabel(match_selection_frame, text="选择要录制的对局:").pack(side="left", padx=5)
+        for i in range(5):
+            chk = ctk.CTkCheckBox(match_selection_frame, text=f"Match {i+1}", variable=self.match_selection_vars[i])
+            chk.pack(side="left", padx=5)
+
+        # 底部按钮
+        btn_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
+        btn_frame.pack(side="bottom", pady=10)
+        ctk.CTkButton(btn_frame, text="保存配置", fg_color="green", command=self.save_settings).pack(side="left", padx=10)
         ctk.CTkButton(btn_frame, text="取消", command=self.destroy).pack(side="left", padx=10)
 
     def browse_dir(self, var):
@@ -213,6 +226,8 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         self.match_count_var.set(str(config.get("m10_match_count", 5)))
         self.season_var.set(str(config.get("m10_season", 1)))
         self.match_stage_var.set(config.get("m10_match_stage", "小组赛"))
+        for i in range(5):
+            self.match_selection_vars[i].set(config.get(f"m10_match_{i+1}_selected", True))
 
     def save_settings(self):
         try:
@@ -224,6 +239,8 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
             config["m10_match_count"] = int(self.match_count_var.get())
             config["m10_season"] = int(self.season_var.get())
             config["m10_match_stage"] = self.match_stage_var.get()
+            for i in range(5):
+                config[f"m10_match_{i+1}_selected"] = self.match_selection_vars[i].get()
             
             self.app_context.shared.app_config['mode_10'] = config
             

@@ -9,3 +9,5 @@ pywin32>=306
 customtkinter>=5.2.0
 dxcam>=0.0.5
 mss>=9.0.1
+EasyOCR
+opencv-python-headless # EasyOCR 的依赖，避免 GUI 冲突
