@@ -7,3 +7,4 @@ keyboard>=0.13.5
 psutil>=5.9.0
 pywin32>=306
 customtkinter>=5.2.0
+dxcam>=0.0.5

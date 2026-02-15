@@ -13,9 +13,16 @@ import win32gui
 from PIL import Image
 import threading
 
+# 尝试导入 dxcam，如果不可用则退回到 pyautogui 截图
+try:
+    import dxcam
+    DXCAM_AVAILABLE = True
+except ImportError:
+    DXCAM_AVAILABLE = False
+
 
 class VideoRecorder:
-    """视频录制器类"""
+    """视频录制器类 (优先使用 DXGI 方案实现高性能录屏)"""
     
     def __init__(self, context, output_path, fps=60, resolution=(1920, 1080)):
         self.context = context
@@ -26,7 +33,17 @@ class VideoRecorder:
         self.recording = False
         self.writer = None
         self.thread = None
+        self.camera = None
         
+        if DXCAM_AVAILABLE:
+            try:
+                # 初始化 dxcam 实例
+                self.camera = dxcam.create(output_color="BGR")
+                self.logger.info("DXCAM 初始化成功，将使用 DXGI 高性能录屏方案")
+            except Exception as e:
+                self.logger.error(f"DXCAM 初始化失败: {e}，将回退到普通截图方案")
+                self.camera = None
+
     def start_recording(self, window_hwnd):
         """开始录制指定窗口"""
         if self.recording:
@@ -34,13 +51,15 @@ class VideoRecorder:
             return False
             
         try:
-            # 获取窗口区域
+            # 获取窗口客户区在屏幕上的位置
             left, top, right, bottom = win32gui.GetClientRect(window_hwnd)
             screen_left, screen_top = win32gui.ClientToScreen(window_hwnd, (left, top))
             width = right - left
             height = bottom - top
             
-            self.logger.info(f"开始录制窗口区域: ({screen_left}, {screen_top}, {width}, {height})")
+            # 记录录制区域
+            self.capture_region = (screen_left, screen_top, screen_left + width, screen_top + height)
+            self.logger.info(f"开始录制窗口区域: {self.capture_region}")
             
             # 初始化视频写入器
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
@@ -56,15 +75,13 @@ class VideoRecorder:
                 return False
             
             self.recording = True
-            self.window_hwnd = window_hwnd
-            self.capture_region = (screen_left, screen_top, width, height)
             
             # 启动录制线程
             self.thread = threading.Thread(target=self._recording_loop)
             self.thread.daemon = True
             self.thread.start()
             
-            self.logger.info(f"录制已启动，输出文件: {self.output_path}")
+            self.logger.info(f"录制已启动 (FPS: {self.fps})，输出文件: {self.output_path}")
             return True
             
         except Exception as e:
@@ -73,18 +90,54 @@ class VideoRecorder:
     
     def _recording_loop(self):
         """录制循环（在单独线程中运行）"""
-        # 实际测试 pyautogui 在高分辨率下很难达到 60fps，这里根据实际情况调整
         frame_interval = 1.0 / self.fps
-        self.logger.info(f"录制线程启动，目标帧率: {self.fps}")
         
+        # 如果支持 DXCAM，使用其内置的高性能截图
+        if self.camera:
+            try:
+                # 开启 DXCAM 录制
+                # 注意：dxcam 的 region 格式是 (left, top, right, bottom)
+                self.camera.start(region=self.capture_region, target_fps=self.fps)
+                self.logger.info(f"DXCAM 录制循环已启动，目标 FPS: {self.fps}")
+                
+                while self.recording:
+                    loop_start = time.time()
+                    
+                    # 获取最新帧 (dxcam 内部会处理帧率同步)
+                    frame = self.camera.get_latest_frame()
+                    
+                    if frame is not None:
+                        # 调整分辨率
+                        if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
+                            frame = cv2.resize(frame, self.resolution)
+                        
+                        # 写入帧
+                        self.writer.write(frame)
+                    
+                    # 这里的 sleep 只是为了不让 CPU 跑满，dxcam.get_latest_frame() 是非阻塞的
+                    elapsed = time.time() - loop_start
+                    if elapsed < (frame_interval * 0.5):
+                        time.sleep(0.001)
+                        
+                self.camera.stop()
+                self.logger.info("DXCAM 录制循环已正常停止")
+                return
+            except Exception as e:
+                self.logger.error(f"DXCAM 录制中出错: {e}，尝试切换到回退方案")
+                try:
+                    if self.camera: self.camera.stop()
+                except:
+                    pass
+
+        # 回退方案: pyautogui 截图 (针对不兼容 DXGI 的系统)
+        self.logger.info("正在使用回退截图方案进行录制...")
         while self.recording:
             try:
                 loop_start = time.time()
                 
                 # 截取窗口画面
-                screen_left, screen_top, width, height = self.capture_region
-                # 确保坐标不为负数
-                screenshot = pyautogui.screenshot(region=(max(0, screen_left), max(0, screen_top), width, height))
+                x1, y1, x2, y2 = self.capture_region
+                screenshot = pyautogui.screenshot(region=(x1, y1, x2-x1, y2-y1))
                 
                 # 转换为 OpenCV 格式
                 frame = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
@@ -96,15 +149,13 @@ class VideoRecorder:
                 # 写入帧
                 self.writer.write(frame)
                 
-                # 动态控制帧率：确保视频时长与现实时间一致
+                # 动态控制帧率，确保视频时长正确
                 elapsed = time.time() - loop_start
                 if elapsed < frame_interval:
                     time.sleep(frame_interval - elapsed)
-                # 如果截图太慢（elapsed > frame_interval），则不等待，直接进入下一帧
-                # 这样虽然帧率会降低，但视频时长会保持正确
                     
             except Exception as e:
-                self.logger.error(f"录制帧时出错: {e}")
+                self.logger.error(f"回退录制帧时出错: {e}")
                 time.sleep(0.1)
                 continue
     
@@ -319,14 +370,15 @@ def record_single_match(context, window, match_index, output_dir):
         # 5. 检测到WIN界面后的处理
         if win_detected:
             # 增加等待时间，确保动画播放完毕，统计按钮完全出现
-            logger.info("检测到WIN，等待 2.0 秒确保界面稳定...")
-            time.sleep(2.0)
+            # 根据用户反馈，之前 0.5s 太快，2.0s 应该能确保按钮完全稳固
+            logger.info("检测到WIN界面，等待 2.5 秒确保动画结束且统计按钮出现...")
+            time.sleep(2.5)
             
             # 点击统计按钮
             click_stats_button(context, window)
             
-            logger.info("已点击统计，等待 1.5 秒确保数据显示...")
-            time.sleep(1.5)
+            logger.info("已点击统计按钮，等待 2.0 秒确保数据完全显示...")
+            time.sleep(2.0)
         
         # 6. 停止录制
         recorder.stop_recording()
