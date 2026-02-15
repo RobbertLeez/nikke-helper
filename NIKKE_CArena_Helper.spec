@@ -15,12 +15,12 @@ def get_hidden_imports_for_modes(modes_dir='modes'):
 # --- Get mode hidden imports ---
 mode_hidden_imports = get_hidden_imports_for_modes()
 
-# --- Define data files with absolute paths ---
-# SPECPATH is the directory containing this spec file
-spec_dir = os.path.dirname(os.path.abspath(SPECPATH))
+# --- Define data files ---
+# Use current working directory (where pyinstaller is run from)
+# This works both locally and in GitHub Actions
 data_files = [
-    (os.path.join(spec_dir, 'config.json'), '.'),
-    (os.path.join(spec_dir, 'icon.ico'), '.')
+    ('config.json', '.'),
+    ('icon.ico', '.')
 ]
 
 # --- Define hidden imports ---
@@ -42,7 +42,7 @@ hidden_imports = [
 
 a = Analysis(
    ['gui_app.py'],
-   pathex=[spec_dir], # Use spec directory as path
+   pathex=[], # Let PyInstaller use current directory automatically
    binaries=[],
    datas=data_files,
    hiddenimports=hidden_imports, # Use the defined hidden_imports list
@@ -71,13 +71,13 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon=os.path.join(spec_dir, 'icon.ico'),
+    icon='icon.ico',
     uac_admin=False)
 coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
-    Tree(os.path.join(spec_dir, 'assets'), prefix='assets'),
+    Tree('assets', prefix='assets'),
     strip=False,
     upx=True,
     upx_exclude=[],
