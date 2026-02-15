@@ -47,6 +47,12 @@ hidden_imports = [
    'modes.mode9',
    'modes.mode10',  # Explicitly add mode10
    'modes.mode41',
+   'easyocr',
+   'skimage',
+   'skimage.feature._orb_descriptor_positions',
+   'scipy.special._cdflib',
+   'scipy.linalg.cython_blas',
+   'scipy.linalg.cython_lapack',
 ] + mode_hidden_imports # Add the dynamically found mode modules
 
 
