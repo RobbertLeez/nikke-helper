@@ -97,12 +97,18 @@ class VideoRecorder:
     
     def _recording_loop(self):
         """录制循环"""
-        frame_interval = 1.0 / self.fps
+        # 如果是截图方案，将 FPS 降低到 30 以保证稳定性，DXGI 保持 60
+        target_fps = self.fps
+        if not self.camera:
+            target_fps = min(30, self.fps)
+            self.logger.info(f"由于未开启 DXGI，自动将录制 FPS 调整为: {target_fps}")
+            
+        frame_interval = 1.0 / target_fps
         
         # 方案 1: DXCAM
         if self.camera:
             try:
-                self.camera.start(region=self.capture_region, target_fps=self.fps)
+                self.camera.start(region=self.capture_region, target_fps=target_fps)
                 while self.recording:
                     loop_start = time.time()
                     frame = self.camera.get_latest_frame()
@@ -121,6 +127,14 @@ class VideoRecorder:
                 except: pass
 
         # 方案 2: MSS (极速截图)
+        # 强制在 _recording_loop 中再次检查 mss，确保其可用
+        if not self.sct:
+            try:
+                import mss
+                self.sct = mss.mss()
+            except:
+                pass
+
         if self.sct:
             self.logger.info("正在使用 MSS 高性能方案录制...")
             monitor = {
@@ -129,43 +143,47 @@ class VideoRecorder:
                 "width": self.capture_region[2] - self.capture_region[0],
                 "height": self.capture_region[3] - self.capture_region[1]
             }
+            
+            last_frame_time = time.time()
             while self.recording:
-                loop_start = time.time()
-                try:
-                    sct_img = self.sct.grab(monitor)
-                    frame = np.array(sct_img)
-                    frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
-                    
-                    if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
-                        frame = cv2.resize(frame, self.resolution)
-                    
-                    self.writer.write(frame)
-                    
-                    elapsed = time.time() - loop_start
-                    if elapsed < frame_interval:
-                        time.sleep(frame_interval - elapsed)
-                except Exception as e:
-                    self.logger.error(f"MSS 录制出错: {e}")
-                    break
+                now = time.time()
+                if now - last_frame_time >= frame_interval:
+                    try:
+                        sct_img = self.sct.grab(monitor)
+                        frame = np.array(sct_img)
+                        frame = cv2.cvtColor(frame, cv2.COLOR_BGRA2BGR)
+                        
+                        if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
+                            frame = cv2.resize(frame, self.resolution)
+                        
+                        self.writer.write(frame)
+                        last_frame_time = now
+                    except Exception as e:
+                        self.logger.error(f"MSS 录制出错: {e}")
+                        break
+                else:
+                    time.sleep(0.001)
             return
 
         # 方案 3: 保底 PyAutoGUI
         self.logger.info("正在使用保底方案录制...")
+        last_frame_time = time.time()
         while self.recording:
-            loop_start = time.time()
-            try:
-                x1, y1, x2, y2 = self.capture_region
-                screenshot = pyautogui.screenshot(region=(x1, y1, x2-x1, y2-y1))
-                frame = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
-                if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
-                    frame = cv2.resize(frame, self.resolution)
-                self.writer.write(frame)
-                elapsed = time.time() - loop_start
-                if elapsed < frame_interval:
-                    time.sleep(frame_interval - elapsed)
-            except Exception as e:
-                self.logger.error(f"保底录制出错: {e}")
-                break
+            now = time.time()
+            if now - last_frame_time >= frame_interval:
+                try:
+                    x1, y1, x2, y2 = self.capture_region
+                    screenshot = pyautogui.screenshot(region=(max(0, x1), max(0, y1), x2-x1, y2-y1))
+                    frame = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
+                    if frame.shape[1] != self.resolution[0] or frame.shape[0] != self.resolution[1]:
+                        frame = cv2.resize(frame, self.resolution)
+                    self.writer.write(frame)
+                    last_frame_time = now
+                except Exception as e:
+                    self.logger.error(f"保底录制出错: {e}")
+                    break
+            else:
+                time.sleep(0.001)
     
     def stop_recording(self):
         """停止录制"""
