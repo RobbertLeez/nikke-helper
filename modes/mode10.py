@@ -23,25 +23,25 @@ class ExternalRecorderController:
         self.logger = context.shared.logger
         
         # 从 app_config 中获取模式10的专用配置
-        m10_config = context.shared.app_config.get('mode_10', {})
+        m10_config = context.shared.app_config.get("mode_10", {})
         
-        self.start_hotkey = m10_config.get('m10_start_hotkey', 'alt+f9').lower().split('+')
-        self.stop_hotkey = m10_config.get('m10_stop_hotkey', 'alt+f9').lower().split('+')
-        self.source_dir = m10_config.get('m10_source_dir', '')
-        self.target_dir = m10_config.get('m10_target_dir', '')
+        self.start_hotkey = m10_config.get("m10_start_hotkey", "alt+f9").lower().split("+")
+        self.stop_hotkey = m10_config.get("m10_stop_hotkey", "alt+f9").lower().split("+")
+        self.source_dir = m10_config.get("m10_source_dir", "")
+        self.target_dir = m10_config.get("m10_target_dir", "")
         
         self.is_recording = False
 
     def start_recording(self):
         if self.is_recording: return
-        self.logger.info(f"触发开始录制热键: {'+'.join(self.start_hotkey)}")
+        self.logger.info(f"触发开始录制热键: {"+".join(self.start_hotkey)}")
         pyautogui.hotkey(*self.start_hotkey)
         self.is_recording = True
         return True
 
     def stop_recording(self):
         if not self.is_recording: return
-        self.logger.info(f"触发停止录制热键: {'+'.join(self.stop_hotkey)}")
+        self.logger.info(f"触发停止录制热键: {"+".join(self.stop_hotkey)}")
         pyautogui.hotkey(*self.stop_hotkey)
         self.is_recording = False
         return True
@@ -50,7 +50,7 @@ class ExternalRecorderController:
         """获取源目录下最新的视频文件"""
         if not self.source_dir or not os.path.exists(self.source_dir):
             return None
-        video_extensions = ['*.mp4', '*.mkv', '*.mov', '*.flv', '*.ts']
+        video_extensions = ["*.mp4", "*.mkv", "*.mov", "*.flv", "*.ts"]
         all_videos = []
         for ext in video_extensions:
             all_videos.extend(glob.glob(os.path.join(self.source_dir, ext)))
@@ -58,15 +58,21 @@ class ExternalRecorderController:
         return max(all_videos, key=os.path.getmtime)
 
 
-def capture_lineup(context, window, side='left', team_idx=0):
+def capture_lineup(context, window, side="left", team_idx=0):
     """
     截取指定玩家的指定队伍阵容图
     """
     logger = context.shared.logger
     # 坐标定义 (参考 core/constants.py)
-    entry_coord = core_constants.R_PLAYER1_ENTRY_REL if side == 'left' else core_constants.R_PLAYER2_ENTRY_REL
+    entry_coord = core_constants.R_PLAYER1_ENTRY_REL if side == "left" else core_constants.R_PLAYER2_ENTRY_REL
     team_btns = core_constants.R_TEAM_BUTTONS_REL
-    screenshot_region = core_constants.R_TEAM_SCREENSHOT_REGION_REL
+    # 用户提供的 2375x1336 分辨率下的新截图区域 (866, 503) 到 (1506, 986)
+    # 转换为相对坐标: (x_rel, y_rel, width_rel, height_rel)
+    # x_rel = 866 / 2375 = 0.3646
+    # y_rel = 503 / 1336 = 0.3765
+    # width_rel = (1506 - 866) / 2375 = 640 / 2375 = 0.2695
+    # height_rel = (986 - 503) / 1336 = 483 / 1336 = 0.3615
+    screenshot_region = (0.3646, 0.3765, 0.2695, 0.3615)
     exit_coord = core_constants.R_CLOSE_RESULT_REL # 借用关闭按钮坐标
     
     logger.info(f"正在截取 {side} 玩家第 {team_idx+1} 队阵容...")
@@ -102,43 +108,81 @@ def process_video_with_lineup(context, video_path, left_img, right_img, match_in
         logger.error("未找到 ffmpeg.exe，跳过后期合成。")
         return video_path
 
-    target_dir = context.shared.app_config.get('mode_10', {}).get('m10_target_dir', '')
+    target_dir = context.shared.app_config.get("mode_10", {}).get("m10_target_dir", "")
     if not target_dir: return video_path
     
     timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
     final_output = os.path.join(target_dir, f"match_{match_index+1}_{timestamp}_full.mp4")
     
     # 1. 合成阵容对比图 (1920x1080 背景)
-    lineup_bg = os.path.join(context.shared.base_temp_dir, f"lineup_bg_{match_index}.png")
-    bg = np.zeros((1080, 1920, 3), dtype=np.uint8)
+    lineup_bg_path = os.path.join(context.shared.base_temp_dir, f"lineup_bg_{match_index}.png")
+    bg_width, bg_height = 1920, 1080
+    bg = np.zeros((bg_height, bg_width, 3), dtype=np.uint8)
     
     img_l = cv2.imread(left_img)
     img_r = cv2.imread(right_img)
     
     if img_l is not None and img_r is not None:
-        # 缩放图片以适应半屏
-        h, w = 400, 800 # 预设尺寸
-        img_l = cv2.resize(img_l, (w, h))
-        img_r = cv2.resize(img_r, (w, h))
-        # 放置位置
-        bg[340:340+h, 100:100+w] = img_l
-        bg[340:340+h, 1020:1020+w] = img_r
-        # 画个 VS 文本 (可选)
-        cv2.putText(bg, "VS", (910, 560), cv2.FONT_HERSHEY_SIMPLEX, 2, (255, 255, 255), 3)
-        cv2.imwrite(lineup_bg, bg)
+        # 目标显示区域宽度 (例如，总宽度的一半减去一些间距)
+        target_half_width = (bg_width - 100) // 2 # 100是左右总间距
+        max_height = bg_height - 200 # 上下留白
+
+        # 等比例缩放左图
+        h_l, w_l, _ = img_l.shape
+        scale_l = min(target_half_width / w_l, max_height / h_l)
+        new_w_l, new_h_l = int(w_l * scale_l), int(h_l * scale_l)
+        img_l_resized = cv2.resize(img_l, (new_w_l, new_h_l))
+
+        # 等比例缩放右图
+        h_r, w_r, _ = img_r.shape
+        scale_r = min(target_half_width / w_r, max_height / h_r)
+        new_w_r, new_h_r = int(w_r * scale_r), int(h_r * scale_r)
+        img_r_resized = cv2.resize(img_r, (new_w_r, new_h_r))
+
+        # 放置位置 (居中，并留出间距)
+        # 左图起始X: (bg_width / 2 - 间距 - new_w_l) / 2
+        # 右图起始X: bg_width / 2 + 间距 / 2
+        spacing = 60 # 左右图之间的间距
+        start_x_l = (bg_width // 2 - spacing // 2 - new_w_l) // 2 + 20 # 额外左边距
+        start_y_l = (bg_height - new_h_l) // 2
+        
+        start_x_r = bg_width // 2 + spacing // 2 - 20 # 额外右边距
+        start_y_r = (bg_height - new_h_r) // 2
+
+        bg[start_y_l:start_y_l+new_h_l, start_x_l:start_x_l+new_w_l] = img_l_resized
+        bg[start_y_r:start_y_r+new_h_r, start_x_r:start_x_r+new_w_r] = img_r_resized
+
+        # 画个 VS 文本
+        text = "VS"
+        font = cv2.FONT_HERSHEY_SIMPLEX
+        font_scale = 2
+        font_thickness = 3
+        text_size = cv2.getTextSize(text, font, font_scale, font_thickness)[0]
+        text_x = (bg_width - text_size[0]) // 2
+        text_y = (bg_height + text_size[1]) // 2
+        cv2.putText(bg, text, (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness)
+        
+        cv2.imwrite(lineup_bg_path, bg)
     else:
         logger.error("读取阵容截图失败，跳过合成。")
         return video_path
 
     # 2. FFmpeg 合成指令: [阵容图2秒] + [原视频]
-    # 使用 filter_complex 实现无缝拼接
+    # 使用 filter_complex 实现无缝拼接，并添加静音音轨
     cmd = [
         ffmpeg_exe, "-y",
-        "-loop", "1", "-t", "2", "-i", lineup_bg,
+        "-loop", "1", "-t", "2", "-i", lineup_bg_path, # 2秒图片
+        "-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100", # 2秒静音音轨
         "-i", video_path,
-        "-filter_complex", "[0:v]format=yuv420p[v0];[1:v]scale=1920:1080,format=yuv420p[v1];[v0][v1]concat=n=2:v=1:a=0[outv]",
-        "-map", "[outv]", "-map", "1:a?", # 尝试保留原视频音频
+        "-filter_complex", 
+        "[0:v]format=yuv420p,setsar=1[v0];" # 阵容图视频流
+        "[1:a]atrim=duration=2[a0];" # 2秒静音音轨
+        "[2:v]scale=1920:1080,format=yuv420p,setsar=1[v1];" # 原视频视频流
+        "[2:a]anull[a1];" # 原视频音频流 (如果存在)
+        "[v0][a0][v1][a1]concat=n=2:v=1:a=1[outv][outa]", # 视频和音频流拼接
+        "-map", "[outv]", "-map", "[outa]",
         "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+        "-c:a", "aac", "-b:a", "192k",
         final_output
     ]
     
@@ -148,6 +192,7 @@ def process_video_with_lineup(context, video_path, left_img, right_img, match_in
         logger.info("合成完成！")
         # 清理临时文件和原视频
         if os.path.exists(video_path): os.remove(video_path)
+        if os.path.exists(lineup_bg_path): os.remove(lineup_bg_path)
         return final_output
     except Exception as e:
         logger.error(f"FFmpeg 合成失败: {e}")
@@ -182,8 +227,8 @@ def record_single_match(context, window, match_index):
     recorder = ExternalRecorderController(context)
     
     # 1. 战前侦察：截图阵容
-    left_img = capture_lineup(context, window, 'left', match_index)
-    right_img = capture_lineup(context, window, 'right', match_index)
+    left_img = capture_lineup(context, window, "left", match_index)
+    right_img = capture_lineup(context, window, "right", match_index)
     
     # 2. 点击播放并开始录制
     play_coords = [(0.6057, 0.5850), (0.6057, 0.6247), (0.6057, 0.6652), (0.6057, 0.7064), (0.6057, 0.7462)]
@@ -223,9 +268,9 @@ def run(context):
     window = core_utils.find_and_activate_window(context)
     if not window: return
     
-    m10_config = context.shared.app_config.get('mode_10', {})
-    match_count = m10_config.get('m10_match_count', 5)
-    start_idx = m10_config.get('m10_start_index', 0)
+    m10_config = context.shared.app_config.get("mode_10", {})
+    match_count = m10_config.get("m10_match_count", 5)
+    start_idx = m10_config.get("m10_start_index", 0)
     
     for i in range(start_idx, start_idx + match_count):
         if core_utils.check_stop_signal(context): break
