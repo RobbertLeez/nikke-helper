@@ -120,9 +120,11 @@ def process_video_with_lineup(context, video_path, left_img, right_img, left_pla
     season = m10_config.get("m10_season", 1)
     match_stage = m10_config.get("m10_match_stage", "未知阶段")
     
-    # 构建新的文件名 (仅显示日期，简化格式)
-    current_date = datetime.datetime.now().strftime("%Y-%m-%d")
-    filename = f"S{season}_{match_stage}_Match{match_index+1}_{current_date}.mp4"
+    # 构建新的文件名 (包含日期和时间)
+    now = datetime.datetime.now()
+    current_date = now.strftime("%Y-%m-%d")
+    current_time = now.strftime("%H%M%S")
+    filename = f"S{season}_{match_stage}_Match{match_index+1}_{current_date}_{current_time}.mp4"
     
     # 按赛季创建子文件夹
     season_dir = os.path.join(target_dir, f"S{season}")
@@ -170,17 +172,17 @@ def process_video_with_lineup(context, video_path, left_img, right_img, left_pla
         bg[start_y_r:start_y_r+new_h_r, start_x_r:start_x_r+new_w_r] = img_r_resized
 
         # 根据胜负添加 WIN 字样 (移除 VS)
-        if is_win is not None:
+        if is_win in [1, 2]:
             text = "WIN"
             font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 3.0  # 增加为原来的 2 倍 (之前是 1.5)
+            font_scale = 3.0  # 增加为原来的 2 倍
             font_thickness = 6
             color = (0, 0, 255) # 红色
             
             # 精确坐标调整
-            if is_win: # 左边赢
+            if is_win == 1: # 左边赢 (青色 WIN)
                 win_pos = (535, 340)
-            else: # 右边赢
+            else: # 右边赢 (红色 WIN)
                 win_pos = (1470, 340)
             
             cv2.putText(bg, text, win_pos, font, font_scale, color, font_thickness)
@@ -223,24 +225,37 @@ def process_video_with_lineup(context, video_path, left_img, right_img, left_pla
 
 
 def detect_win_screen(context, window):
+    """
+    检测胜负结果
+    返回: 1 (左边赢, 青色), 2 (右边赢, 红色), None (未检测到)
+    """
     try:
-        win_region_rel = (0.4, 0.1, 0.2, 0.15)
-        stats_icon_region_rel = (0.6, 0.9, 0.05, 0.08)
+        # 扩大检测区域以覆盖可能的 WIN 字样位置
+        win_region_rel = (0.3, 0.05, 0.4, 0.2)
         temp_win_path = os.path.join(context.shared.base_temp_dir, "check_win.png")
         core_utils.take_screenshot(context, win_region_rel, window, temp_win_path)
         
-        is_win = False
+        result = None
         if os.path.exists(temp_win_path):
             img = cv2.imread(temp_win_path)
             if img is not None:
                 img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+                # 青色判定 (左边赢)
                 blue_mask = (img_rgb[:,:,0] < 100) & (img_rgb[:,:,1] > 180) & (img_rgb[:,:,2] > 180)
+                # 红色判定 (右边赢)
                 red_mask = (img_rgb[:,:,0] > 200) & (img_rgb[:,:,1] < 100) & (img_rgb[:,:,2] < 100)
-                if np.sum(blue_mask) / img_rgb.size > 0.01 or np.sum(red_mask) / img_rgb.size > 0.01:
-                    is_win = True
+                
+                blue_pixels = np.sum(blue_mask)
+                red_pixels = np.sum(red_mask)
+                
+                if blue_pixels > red_pixels and blue_pixels / img_rgb.size > 0.005:
+                    result = 1 # 左边赢
+                elif red_pixels > blue_pixels and red_pixels / img_rgb.size > 0.005:
+                    result = 2 # 右边赢
+                    
             os.remove(temp_win_path)
-        return is_win
-    except: return False
+        return result
+    except: return None
 
 
 def record_single_match(context, window, match_index):
