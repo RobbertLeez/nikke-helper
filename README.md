@@ -1,4 +1,4 @@
-# NIKKE CArena Helper (录屏指挥官)
+# NIKKE CArena Helper
 
 NIKKE CArena Helper 是一款专为《胜利女神：妮姬》竞技场对局设计的自动化辅助工具。它能够自动管理对局录制、截取双方阵容，并利用 FFmpeg 将阵容信息与对局视频完美合成，帮助指挥官更高效地记录和分析战斗。
 
