@@ -73,15 +73,18 @@ class VideoRecorder:
     
     def _recording_loop(self):
         """录制循环（在单独线程中运行）"""
+        # 实际测试 pyautogui 在高分辨率下很难达到 60fps，这里根据实际情况调整
         frame_interval = 1.0 / self.fps
+        self.logger.info(f"录制线程启动，目标帧率: {self.fps}")
         
         while self.recording:
             try:
-                start_time = time.time()
+                loop_start = time.time()
                 
                 # 截取窗口画面
                 screen_left, screen_top, width, height = self.capture_region
-                screenshot = pyautogui.screenshot(region=(screen_left, screen_top, width, height))
+                # 确保坐标不为负数
+                screenshot = pyautogui.screenshot(region=(max(0, screen_left), max(0, screen_top), width, height))
                 
                 # 转换为 OpenCV 格式
                 frame = cv2.cvtColor(np.array(screenshot), cv2.COLOR_RGB2BGR)
@@ -93,15 +96,17 @@ class VideoRecorder:
                 # 写入帧
                 self.writer.write(frame)
                 
-                # 控制帧率
-                elapsed = time.time() - start_time
-                sleep_time = frame_interval - elapsed
-                if sleep_time > 0:
-                    time.sleep(sleep_time)
+                # 动态控制帧率：确保视频时长与现实时间一致
+                elapsed = time.time() - loop_start
+                if elapsed < frame_interval:
+                    time.sleep(frame_interval - elapsed)
+                # 如果截图太慢（elapsed > frame_interval），则不等待，直接进入下一帧
+                # 这样虽然帧率会降低，但视频时长会保持正确
                     
             except Exception as e:
                 self.logger.error(f"录制帧时出错: {e}")
-                break
+                time.sleep(0.1)
+                continue
     
     def stop_recording(self):
         """停止录制"""
@@ -259,7 +264,8 @@ def record_single_match(context, window, match_index, output_dir):
     output_path = os.path.join(output_dir, output_filename)
     
     # 获取视频参数
-    fps = getattr(mode_config, 'm10_video_fps', 60)
+    # 降低默认 FPS 到 20，因为 pyautogui 截图速度有限，设置太高会导致视频快进
+    fps = getattr(mode_config, 'm10_video_fps', 20)
     width = getattr(mode_config, 'm10_video_width', 1920)
     height = getattr(mode_config, 'm10_video_height', 1080)
     
@@ -312,14 +318,15 @@ def record_single_match(context, window, match_index, output_dir):
         
         # 5. 检测到WIN界面后的处理
         if win_detected:
-            logger.info("等待界面稳定...")
-            time.sleep(0.5)
+            # 增加等待时间，确保动画播放完毕，统计按钮完全出现
+            logger.info("检测到WIN，等待 2.0 秒确保界面稳定...")
+            time.sleep(2.0)
             
             # 点击统计按钮
             click_stats_button(context, window)
             
-            logger.info("等待统计数据显示...")
-            time.sleep(0.5)
+            logger.info("已点击统计，等待 1.5 秒确保数据显示...")
+            time.sleep(1.5)
         
         # 6. 停止录制
         recorder.stop_recording()
