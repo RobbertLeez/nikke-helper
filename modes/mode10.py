@@ -173,17 +173,15 @@ def process_video_with_lineup(context, video_path, left_img, right_img, left_pla
         if is_win is not None:
             text = "WIN"
             font = cv2.FONT_HERSHEY_SIMPLEX
-            font_scale = 1.5
-            font_thickness = 4
+            font_scale = 3.0  # 增加为原来的 2 倍 (之前是 1.5)
+            font_thickness = 6
             color = (0, 0, 255) # 红色
             
-            # 绿色框框位置大概在头像右侧
-            # 左边玩家 WIN 位置: (660, 200) 附近
-            # 右边玩家 WIN 位置: (1220, 200) 附近
+            # 精确坐标调整
             if is_win: # 左边赢
-                win_pos = (660, 210)
+                win_pos = (535, 340)
             else: # 右边赢
-                win_pos = (1220, 210)
+                win_pos = (1470, 340)
             
             cv2.putText(bg, text, win_pos, font, font_scale, color, font_thickness)
         

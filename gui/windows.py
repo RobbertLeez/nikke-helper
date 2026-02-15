@@ -185,7 +185,7 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         ctk.CTkLabel(info_frame, text="赛事阶段:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         match_stages = ["小组赛", "64进32", "32进16", "16进8", "8进4", "半决赛", "决赛"]
         self.match_stage_option_menu = ctk.CTkOptionMenu(info_frame, values=match_stages, variable=self.match_stage_var, width=150)
-        self.match_stage_option_menu.grid(row=2, column=1, padx=5, pady=5, sticky="w")
+        self.match_stage_option_menu.grid(row=1, column=1, padx=5, pady=5, sticky="w")
 
         # 对局选择复选框
         match_selection_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
