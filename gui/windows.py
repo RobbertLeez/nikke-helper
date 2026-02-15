@@ -174,18 +174,15 @@ class Mode10SettingsWindow(ctk.CTkToplevel):
         ctk.CTkButton(dir_frame, text="浏览", width=80, command=lambda: self.browse_dir(self.target_dir_var)).grid(row=3, column=1, padx=5, pady=5)
         dir_frame.grid_columnconfigure(0, weight=1)
 
-        # 局数与赛季配置 (并排)
+        # 赛季与阶段配置
         info_frame = ctk.CTkFrame(main_frame, fg_color="transparent")
         info_frame.pack(fill="x", padx=20, pady=5)
         
-        ctk.CTkLabel(info_frame, text="录制对局数量:").grid(row=0, column=0, padx=5, pady=5, sticky="w")
-        ctk.CTkEntry(info_frame, textvariable=self.match_count_var, width=80).grid(row=0, column=1, padx=5, pady=5, sticky="w")
-        
-        ctk.CTkLabel(info_frame, text="当前赛季 (例如: 22):").grid(row=1, column=0, padx=5, pady=5, sticky="w")
-        ctk.CTkEntry(info_frame, textvariable=self.season_var, width=80).grid(row=1, column=1, padx=5, pady=5, sticky="w")
+        ctk.CTkLabel(info_frame, text="当前赛季 (例如: 22):").grid(row=0, column=0, padx=5, pady=5, sticky="w")
+        ctk.CTkEntry(info_frame, textvariable=self.season_var, width=80).grid(row=0, column=1, padx=5, pady=5, sticky="w")
 
         # 赛事阶段配置
-        ctk.CTkLabel(info_frame, text="赛事阶段:").grid(row=2, column=0, padx=5, pady=5, sticky="w")
+        ctk.CTkLabel(info_frame, text="赛事阶段:").grid(row=1, column=0, padx=5, pady=5, sticky="w")
         match_stages = ["小组赛", "64进32", "32进16", "16进8", "8进4", "半决赛", "决赛"]
         self.match_stage_option_menu = ctk.CTkOptionMenu(info_frame, values=match_stages, variable=self.match_stage_var, width=150)
         self.match_stage_option_menu.grid(row=2, column=1, padx=5, pady=5, sticky="w")

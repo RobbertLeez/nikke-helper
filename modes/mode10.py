@@ -102,7 +102,7 @@ def capture_lineup(context, window, side="left", team_idx=0):
     return save_path, player_id
 
 
-def process_video_with_lineup(context, video_path, left_img, right_img, left_player_id, right_player_id, match_index):
+def process_video_with_lineup(context, video_path, left_img, right_img, left_player_id, right_player_id, match_index, is_win=None):
     """
     使用 FFmpeg 将阵容图拼接到视频开头
     """
@@ -123,7 +123,13 @@ def process_video_with_lineup(context, video_path, left_img, right_img, left_pla
     # 构建新的文件名 (仅显示日期，简化格式)
     current_date = datetime.datetime.now().strftime("%Y-%m-%d")
     filename = f"S{season}_{match_stage}_Match{match_index+1}_{current_date}.mp4"
-    final_output = os.path.join(target_dir, filename)
+    
+    # 按赛季创建子文件夹
+    season_dir = os.path.join(target_dir, f"S{season}")
+    if not os.path.exists(season_dir):
+        os.makedirs(season_dir, exist_ok=True)
+    
+    final_output = os.path.join(season_dir, filename)
     
     # 1. 合成阵容对比图 (1920x1080 背景)
     lineup_bg_path = os.path.join(context.shared.base_temp_dir, f"lineup_bg_{match_index}.png")
@@ -163,15 +169,23 @@ def process_video_with_lineup(context, video_path, left_img, right_img, left_pla
         bg[start_y_l:start_y_l+new_h_l, start_x_l:start_x_l+new_w_l] = img_l_resized
         bg[start_y_r:start_y_r+new_h_r, start_x_r:start_x_r+new_w_r] = img_r_resized
 
-        # 画个 VS 文本
-        text = "VS"
-        font = cv2.FONT_HERSHEY_SIMPLEX
-        font_scale = 2
-        font_thickness = 3
-        text_size = cv2.getTextSize(text, font, font_scale, font_thickness)[0]
-        text_x = (bg_width - text_size[0]) // 2
-        text_y = (bg_height + text_size[1]) // 2
-        cv2.putText(bg, text, (text_x, text_y), font, font_scale, (255, 255, 255), font_thickness)
+        # 根据胜负添加 WIN 字样 (移除 VS)
+        if is_win is not None:
+            text = "WIN"
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            font_scale = 1.5
+            font_thickness = 4
+            color = (0, 0, 255) # 红色
+            
+            # 绿色框框位置大概在头像右侧
+            # 左边玩家 WIN 位置: (660, 200) 附近
+            # 右边玩家 WIN 位置: (1220, 200) 附近
+            if is_win: # 左边赢
+                win_pos = (660, 210)
+            else: # 右边赢
+                win_pos = (1220, 210)
+            
+            cv2.putText(bg, text, win_pos, font, font_scale, color, font_thickness)
         
         cv2.imwrite(lineup_bg_path, bg)
     else:
@@ -270,8 +284,11 @@ def record_single_match(context, window, match_index):
     time.sleep(3.0)
     raw_video = recorder.get_latest_video()
     
+    # 获取胜负结果
+    is_win = detect_win_screen(context, window)
+    
     if raw_video:
-        process_video_with_lineup(context, raw_video, left_img, right_img, left_player_id, right_player_id, match_index)
+        process_video_with_lineup(context, raw_video, left_img, right_img, left_player_id, right_player_id, match_index, is_win=is_win)
     
     # 5. 退出
     exit_rel = (0.8428, 0.5401)
