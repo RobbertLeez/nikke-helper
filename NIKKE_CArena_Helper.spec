@@ -1,6 +1,7 @@
 # -*- mode: python ; coding: utf-8 -*-
 
 import os
+from PyInstaller.utils.hooks import collect_all
 
 # --- Helper function to find mode modules ---
 def get_hidden_imports_for_modes(modes_dir='modes'):
@@ -15,27 +16,23 @@ def get_hidden_imports_for_modes(modes_dir='modes'):
 # --- Get mode hidden imports ---
 mode_hidden_imports = get_hidden_imports_for_modes()
 
-# --- Define data files ---
-# Use current working directory (where pyinstaller is run from)
-# This works both locally and in GitHub Actions
-data_files = [
+# --- Collect all for easyocr and its heavy dependencies ---
+# This will automatically handle datas, binaries, and hiddenimports for these packages
+packages_to_collect = ['easyocr', 'skimage', 'scipy', 'qudida', 'albumentations']
+datas = [
     ('config.json', '.'),
     ('icon.ico', '.')
 ]
-
-# --- Define hidden imports ---
-# Add modes, potentially core modules, and library specifics
+binaries = []
 hidden_imports = [
-   'PIL._tkinter_finder', # Often needed for Pillow with Tkinter GUIs
+   'PIL._tkinter_finder',
    'PIL.ImageTk',
    'PIL.Image',
-   'keyboard._winkeyboard', # For keyboard library on Windows
-   # Add core modules explicitly if needed (usually not, but safe)
+   'keyboard._winkeyboard',
    'core.constants',
    'core.utils',
    'core.match_processing',
    'core.player_processing',
-   # Explicitly add all mode modules to ensure they are included
    'modes.mode1',
    'modes.mode2',
    'modes.mode3',
@@ -45,23 +42,22 @@ hidden_imports = [
    'modes.mode7',
    'modes.mode8',
    'modes.mode9',
-   'modes.mode10',  # Explicitly add mode10
+   'modes.mode10',
    'modes.mode41',
-   'easyocr',
-   'skimage',
-   'skimage.feature._orb_descriptor_positions',
-   'scipy.special._cdflib',
-   'scipy.linalg.cython_blas',
-   'scipy.linalg.cython_lapack',
-] + mode_hidden_imports # Add the dynamically found mode modules
+] + mode_hidden_imports
 
+for pkg in packages_to_collect:
+    tmp_ret = collect_all(pkg)
+    datas += tmp_ret[0]
+    binaries += tmp_ret[1]
+    hidden_imports += tmp_ret[2]
 
 a = Analysis(
    ['gui_app.py'],
-   pathex=[], # Let PyInstaller use current directory automatically
-   binaries=[],
-   datas=data_files,
-   hiddenimports=hidden_imports, # Use the defined hidden_imports list
+   pathex=[],
+   binaries=binaries,
+   datas=datas,
+   hiddenimports=hidden_imports,
    hookspath=[],
    hooksconfig={},
    runtime_hooks=[],
@@ -81,7 +77,7 @@ exe = EXE(
     bootloader_ignore_signals=False,
    strip=False,
    upx=True,
-   console=False, # Set back to False for release
+   console=False,
    disable_windowed_traceback=False,
    argv_emulation=False,
     target_arch=None,
@@ -89,12 +85,13 @@ exe = EXE(
     entitlements_file=None,
     icon='icon.ico',
     uac_admin=False)
+
 coll = COLLECT(
     exe,
     a.binaries,
     a.datas,
     Tree('assets', prefix='assets'),
-    Tree('modes', prefix='modes'), # 确保包含所有模式文件
+    Tree('modes', prefix='modes'),
     strip=False,
     upx=True,
     upx_exclude=[],
