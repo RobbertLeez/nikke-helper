@@ -226,12 +226,16 @@ def process_video_with_lineup(context, video_path, left_img, right_img, left_pla
 
 def detect_win_screen(context, window):
     """
-    检测胜负结果
+    检测胜负结果 (基于用户提供的 2372*1383 分辨率下的 [WIN] 标志坐标)
+    区域坐标: (990, 117) 到 (1368, 361)
     返回: 1 (左边赢, 青色), 2 (右边赢, 红色), None (未检测到)
     """
     try:
-        # 扩大检测区域以覆盖可能的 WIN 字样位置
-        win_region_rel = (0.3, 0.05, 0.4, 0.2)
+        # 将绝对坐标转换为比例坐标 (针对 2372*1383)
+        # x_rel = 990 / 2372 ≈ 0.417, y_rel = 117 / 1383 ≈ 0.085
+        # w_rel = (1368-990) / 2372 ≈ 0.159, h_rel = (361-117) / 1383 ≈ 0.176
+        win_region_rel = (0.417, 0.085, 0.159, 0.176)
+        
         temp_win_path = os.path.join(context.shared.base_temp_dir, "check_win.png")
         core_utils.take_screenshot(context, win_region_rel, window, temp_win_path)
         
@@ -240,9 +244,10 @@ def detect_win_screen(context, window):
             img = cv2.imread(temp_win_path)
             if img is not None:
                 img_rgb = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-                # 青色判定 (左边赢)
-                blue_mask = (img_rgb[:,:,0] < 100) & (img_rgb[:,:,1] > 180) & (img_rgb[:,:,2] > 180)
-                # 红色判定 (右边赢)
+                # 针对 [WIN] 标志的颜色判定 (提高颜色纯度要求)
+                # 青色判定 (左边赢): R低, G高, B高
+                blue_mask = (img_rgb[:,:,0] < 120) & (img_rgb[:,:,1] > 180) & (img_rgb[:,:,2] > 180)
+                # 红色判定 (右边赢): R高, G低, B低
                 red_mask = (img_rgb[:,:,0] > 200) & (img_rgb[:,:,1] < 100) & (img_rgb[:,:,2] < 100)
                 
                 blue_pixels = np.sum(blue_mask)
@@ -251,14 +256,15 @@ def detect_win_screen(context, window):
                 red_ratio = red_pixels / img_rgb.size
                 
                 # 增加详细日志输出方便调试
-                context.shared.logger.info(f"OCR检测详情 - 青色占比: {blue_ratio:.4f}, 红色占比: {red_ratio:.4f}")
+                context.shared.logger.info(f"结算标志检测 - 青色占比: {blue_ratio:.4f}, 红色占比: {red_ratio:.4f}")
                 
-                if blue_pixels > red_pixels and blue_ratio > 0.005:
-                    context.shared.logger.info("检测到结果：左边赢 (青色)")
-                    result = 1 # 左边赢
-                elif red_pixels > blue_pixels and red_ratio > 0.005:
-                    context.shared.logger.info("检测到结果：右边赢 (红色)")
-                    result = 2 # 右边赢
+                # 由于区域非常精准，标志占比会很高，设定 10% 的像素占比作为阈值
+                if blue_ratio > 0.10:
+                    context.shared.logger.info("检测到结算标志：[WIN] (青色/左赢)")
+                    result = 1
+                elif red_ratio > 0.10:
+                    context.shared.logger.info("检测到结算标志：[WIN] (红色/右赢)")
+                    result = 2
                 else:
                     result = None
                     
