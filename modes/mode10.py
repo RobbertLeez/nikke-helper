@@ -258,12 +258,12 @@ def detect_win_screen(context, window):
                 # 增加详细日志输出方便调试
                 context.shared.logger.info(f"结算标志检测 - 青色占比: {blue_ratio:.4f}, 红色占比: {red_ratio:.4f}")
                 
-                # 由于区域非常精准，标志占比会很高，设定 10% 的像素占比作为阈值
-                if blue_ratio > 0.10:
-                    context.shared.logger.info("检测到结算标志：[WIN] (青色/左赢)")
+                # 根据用户实测数据调整阈值：红色 0.01，青色 0.025
+                if blue_ratio > 0.025:
+                    context.shared.logger.info(f"检测到结算标志：[WIN] (青色/左赢, 占比: {blue_ratio:.4f})")
                     result = 1
-                elif red_ratio > 0.10:
-                    context.shared.logger.info("检测到结算标志：[WIN] (红色/右赢)")
+                elif red_ratio > 0.01:
+                    context.shared.logger.info(f"检测到结算标志：[WIN] (红色/右赢, 占比: {red_ratio:.4f})")
                     result = 2
                 else:
                     result = None
