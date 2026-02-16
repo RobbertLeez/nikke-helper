@@ -179,11 +179,11 @@ def process_video_with_lineup(context, video_path, left_img, right_img, left_pla
             font_thickness = 6
             color = (0, 0, 255) # 红色
             
-            # 精确坐标调整
+            # 精确坐标调整 (下移 20 像素)
             if is_win == 1: # 左边赢 (青色 WIN)
-                win_pos = (535, 340)
+                win_pos = (535, 360)
             else: # 右边赢 (红色 WIN)
-                win_pos = (1470, 340)
+                win_pos = (1470, 360)
             
             cv2.putText(bg, text, win_pos, font, font_scale, color, font_thickness)
         
@@ -247,15 +247,26 @@ def detect_win_screen(context, window):
                 
                 blue_pixels = np.sum(blue_mask)
                 red_pixels = np.sum(red_mask)
+                blue_ratio = blue_pixels / img_rgb.size
+                red_ratio = red_pixels / img_rgb.size
                 
-                if blue_pixels > red_pixels and blue_pixels / img_rgb.size > 0.005:
+                # 增加详细日志输出方便调试
+                context.shared.logger.info(f"OCR检测详情 - 青色占比: {blue_ratio:.4f}, 红色占比: {red_ratio:.4f}")
+                
+                if blue_pixels > red_pixels and blue_ratio > 0.005:
+                    context.shared.logger.info("检测到结果：左边赢 (青色)")
                     result = 1 # 左边赢
-                elif red_pixels > blue_pixels and red_pixels / img_rgb.size > 0.005:
+                elif red_pixels > blue_pixels and red_ratio > 0.005:
+                    context.shared.logger.info("检测到结果：右边赢 (红色)")
                     result = 2 # 右边赢
+                else:
+                    result = None
                     
             os.remove(temp_win_path)
         return result
-    except: return None
+    except Exception as e:
+        context.shared.logger.error(f"检测胜负屏幕时出错: {e}")
+        return None
 
 
 def record_single_match(context, window, match_index):
@@ -281,16 +292,38 @@ def record_single_match(context, window, match_index):
     time.sleep(3.0)
     recorder.start_recording()
     
-    # 3. 监控结算
+    # 3. 监控结算 (引入 1.5s 稳定性检测)
     start_time = time.time()
+    stable_start_time = None
+    last_detected_result = None
+    STABLE_THRESHOLD = 1.5  # 持续 1.5 秒稳定则判定结束
+
     while time.time() - start_time < 600:
         if core_utils.check_stop_signal(context): break
-        if detect_win_screen(context, window):
-            time.sleep(3.0)
-            core_utils.click_coordinates(context, (0.6284, 0.9465), window) # 统计按钮
-            time.sleep(3.0)
-            break
-        time.sleep(1.0)
+        
+        current_result = detect_win_screen(context, window)
+        
+        if current_result is not None:
+            if current_result == last_detected_result:
+                # 结果稳定，检查持续时间
+                if stable_start_time is None:
+                    stable_start_time = time.time()
+                elif time.time() - stable_start_time >= STABLE_THRESHOLD:
+                    logger.info(f"检测到稳定的结算界面 (持续 {STABLE_THRESHOLD}s)，准备停止录制。判定结果: {'左赢' if current_result == 1 else '右赢'}")
+                    time.sleep(3.0)
+                    core_utils.click_coordinates(context, (0.6284, 0.9465), window) # 统计按钮
+                    time.sleep(3.0)
+                    break
+            else:
+                # 结果改变或首次检测到，重置计时器
+                last_detected_result = current_result
+                stable_start_time = time.time()
+        else:
+            # 未检测到结果，重置
+            last_detected_result = None
+            stable_start_time = None
+            
+        time.sleep(0.3)  # 缩短采样间隔以提高灵敏度
     
     # 4. 停止并处理
     recorder.stop_recording()
